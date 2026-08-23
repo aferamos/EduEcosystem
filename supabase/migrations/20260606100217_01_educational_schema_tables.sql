@@ -282,3 +282,29 @@ CREATE INDEX IF NOT EXISTS idx_occurrences_student ON occurrences(student_id);
 CREATE INDEX IF NOT EXISTS idx_occurrences_institution ON occurrences(institution_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_institution ON audit_logs(institution_id);
 CREATE INDEX IF NOT EXISTS idx_class_subjects_teacher ON class_subjects(teacher_id);
+
+
+--===================================================================================
+
+
+-- ============================================================
+--   CONSULTAR USUARIOS
+-- ============================================================
+Select u.id, u.email, f.full_name, r.role, i.name ,u.encrypted_password, u.phone, u.created_at, u.updated_at 
+  From auth.users u, -- USUARIO
+         profiles f, -- PERFIL DO USUARIO
+       user_roles r, -- FUNÇÕES DO USUARIO
+     institutions i  -- INSTITUIÇÃO
+ Where u.id = f.id
+   And u.id = r.user_id
+   And r.institution_id = i.id;
+
+-- ============================================================
+-- CONSULTAR USUARIOS
+-- ============================================================
+
+SELECT * FROM perfis;
+SELECT * FROM profiles;
+
+SELECT * FROM periodos_letivos;
+select * from academic_periods;

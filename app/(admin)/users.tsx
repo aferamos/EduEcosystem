@@ -45,6 +45,13 @@ const ROLE_FILTER_OPTIONS = [
 ];
 
 export default function UsersScreen() {
+  const handleActivate = async (roleId: string) => {
+      await supabase
+          .from('user_roles')
+          .update({ is_active: true })
+          .eq('id', roleId);
+
+      await loadUsers();};
   const { user } = useAuth();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -65,13 +72,62 @@ export default function UsersScreen() {
 
   const loadUsers = async () => {
     if (!institutionId) return;
-    const { data } = await supabase
-      .from('user_roles')
-      .select('*, profile:profiles!user_id(*)')
-      .eq('institution_id', institutionId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-    setUsers(data ?? []);
+
+    // Busca perfis_usuario + perfis (tabelas reais, sem depender de views com hints de FK)
+    const { data: rolesData, error } = await supabase
+      .from('perfis_usuario')
+      .select('*, perfil_join:perfis!usuario_id(id, nome_completo, avatar_url, telefone, data_nascimento, criado_em, atualizado_em)')
+      .eq('instituicao_id', institutionId)
+    //  .eq('ativo', true)
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      // Fallback: tenta pela view user_roles com join manual
+      const { data: viewData } = await supabase
+        .from('user_roles')
+        .select('id, user_id, institution_id, role, is_active, created_at')
+        .eq('institution_id', institutionId)
+     //   .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (!viewData?.length) { setUsers([]); return; }
+
+      const userIds = [...new Set(viewData.map(r => r.user_id))];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', userIds);
+
+      const profileMap = new Map((profilesData ?? []).map(p => [p.id, p]));
+      const merged = viewData.map(r => ({
+        ...r,
+        profile: profileMap.get(r.user_id) ?? null,
+      }));
+      setUsers(merged as any);
+      return;
+    }
+
+    // Normaliza o resultado para o formato que o resto do componente espera
+    const normalized = (rolesData ?? []).map((r: any) => ({
+      id: r.id,
+      user_id: r.usuario_id,
+      institution_id: r.instituicao_id,
+      role: r.perfil,
+      is_active: r.ativo,
+      created_at: r.criado_em,
+      profile: r.perfil_join
+        ? {
+            id: r.perfil_join.id,
+            full_name: r.perfil_join.nome_completo,
+            avatar_url: r.perfil_join.avatar_url,
+            phone: r.perfil_join.telefone,
+            birth_date: r.perfil_join.data_nascimento,
+            created_at: r.perfil_join.criado_em,
+            updated_at: r.perfil_join.atualizado_em,
+          }
+        : null,
+    }));
+    setUsers(normalized as any);
   };
 
   useEffect(() => { loadUsers(); }, [institutionId]);
@@ -198,19 +254,27 @@ export default function UsersScreen() {
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{profile?.full_name ?? 'Sem nome'}</Text>
                     <RoleBadge role={ur.role} />
+                    <Badge
+                             label={ur.is_active ? 'Ativo' : 'Inativo'}
+                             variant={ur.is_active ? 'success' : 'danger'}
+                            />
                   </View>
                   <TouchableOpacity
-                    onPress={() => handleDeactivate(ur.id)}
-                    style={styles.deactivateBtn}
-                  >
-                    <Text style={styles.deactivateText}>Desativar</Text>
-                  </TouchableOpacity>
-                </View>
-              </Card>
-            );
-          })
-        )}
-      </ScrollView>
+                                onPress={() =>
+                                    ur.is_active
+                                        ? handleDeactivate(ur.id)
+                                        : handleActivate(ur.id)
+                                }>
+                                <Text style={{ color: ur.is_active ? '#C81E1E' : '#16A34A',fontWeight: '600',}}>
+                                    {ur.is_active ? 'Desativar' : 'Ativar'}
+                                </Text>
+                                </TouchableOpacity>
+                              </View>
+                            </Card>
+                          );
+                        })
+                      )}
+                    </ScrollView>
 
       <TouchableOpacity
         style={[styles.fab, { bottom: TAB_BAR_HEIGHT + 16, backgroundColor: theme.primary }]}

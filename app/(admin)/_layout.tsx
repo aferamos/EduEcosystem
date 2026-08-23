@@ -22,10 +22,11 @@ export default function AdminLayout() {
         tabBarStyle: {
           backgroundColor: theme.surface,
           borderTopColor: theme.border,
-          borderTopWidth: 1,
-          height: 56 + insets.bottom,
+          borderTopWidth: -2,
+          height: 54 + insets.bottom,
           paddingBottom: insets.bottom,
-          paddingTop: 6,
+          paddingTop: 8,
+          paddingHorizontal: 8,
           position: 'absolute',
           bottom: 0,
           left: 0,
@@ -36,13 +37,13 @@ export default function AdminLayout() {
           shadowOpacity: 0.08,
           shadowRadius: 4,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 9, fontWeight: '600' },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: 'Principal',
           tabBarIcon: ({ color, size }) => <LayoutDashboard size={size} color={color} />,
         }}
       />

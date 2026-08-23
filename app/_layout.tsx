@@ -31,10 +31,12 @@ function RootNavigator() {
       return;
     }
 
+    const inModal = segments[0]?.startsWith('modal-');
+
     const alreadyOnCorrectPortal =
-      (role === 'admin' || role === 'super_admin' || role === 'coordenador') && inAdmin ||
-      role === 'professor' && inTeacher ||
-      (role === 'aluno' || role === 'responsavel') && inStudent;
+      (role === 'admin' || role === 'super_admin' || role === 'coordenador') && (inAdmin || inModal) ||
+      role === 'professor' && (inTeacher || inModal) ||
+      (role === 'aluno' || role === 'responsavel') && (inStudent || inModal);
 
     if (!alreadyOnCorrectPortal && !inAuth) {
       if (role === 'admin' || role === 'super_admin' || role === 'coordenador') {
@@ -64,6 +66,12 @@ function RootNavigator() {
       <Stack.Screen name="(teacher)" />
       <Stack.Screen name="(student)" />
       <Stack.Screen name="+not-found" />
+      <Stack.Screen name="modal-new-class" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="modal-new-user" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="modal-students" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="modal-teachers" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="modal-classes" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="modal-courses" options={{ presentation: 'modal', headerShown: false }} />
     </Stack>
   );
 }

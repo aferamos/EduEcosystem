@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 interface Props {
   label: string;
@@ -7,10 +7,11 @@ interface Props {
   icon: React.ReactNode;
   color: string;
   subtitle?: string;
+  onPress?: () => void;
 }
 
-export default function StatCard({ label, value, icon, color, subtitle }: Props) {
-  return (
+export default function StatCard({ label, value, icon, color, subtitle, onPress }: Props) {
+  const content = (
     <View style={[styles.card, { borderLeftColor: color }]}>
       <View style={[styles.iconWrap, { backgroundColor: color + '20' }]}>{icon}</View>
       <View style={styles.content}>
@@ -20,9 +21,20 @@ export default function StatCard({ label, value, icon, color, subtitle }: Props)
       </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity style={styles.wrapper} onPress={onPress} activeOpacity={0.75}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return <View style={styles.wrapper}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
+  wrapper: { flex: 1, minWidth: 140 },
   card: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -37,7 +49,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
-    minWidth: 140,
   },
   iconWrap: {
     width: 44,

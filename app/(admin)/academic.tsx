@@ -37,9 +37,7 @@ export default function AcademicScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const institutionId = user?.currentInstitution?.id;
-
-  const loadAll = async () => {
+  const institutionId = user?.currentInstitution?.id;  const loadAll = async () => {
     if (!institutionId) return;
     const [c, cl, s] = await Promise.all([
       supabase.from('courses').select('*').eq('institution_id', institutionId).eq('active', true).order('name'),

@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   CheckCircle,
 } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
@@ -101,7 +102,7 @@ export default function AdminDashboard() {
             <Text style={styles.greeting}>Bom dia,</Text>
             <Text style={styles.name}>{user?.profile.full_name || 'Administrador'}</Text>
           </View>
-          <TouchableOpacity onPress={signOut} style={styles.logoutBtn}>
+          <TouchableOpacity onPress={() => signOut()} style={styles.logoutBtn}>
             <Text style={styles.logoutText}>Sair</Text>
           </TouchableOpacity>
         </View>
@@ -120,12 +121,12 @@ export default function AdminDashboard() {
       >
         <Text style={styles.sectionLabel}>Visão Geral</Text>
         <View style={styles.statsRow}>
-          <StatCard label="Alunos" value={stats.students} icon={<GraduationCap size={20} color={theme.primary} />} color={theme.primary} />
-          <StatCard label="Professores" value={stats.teachers} icon={<Users size={20} color={theme.secondary} />} color={theme.secondary} />
+        <StatCard label="Alunos" value={stats.students} icon={<GraduationCap size={20} color={theme.primary} />} color={theme.primary} onPress={() => router.push('/modal-students')} />
+          <StatCard label="Professores" value={stats.teachers} icon={<Users size={20} color={theme.secondary} />} color={theme.secondary} onPress={() => router.push('/modal-teachers')} />
         </View>
         <View style={styles.statsRow}>
-          <StatCard label="Turmas" value={stats.classes} icon={<BookOpen size={20} color={theme.success} />} color={theme.success} />
-          <StatCard label="Cursos" value={stats.courses} icon={<TrendingUp size={20} color={theme.warning} />} color={theme.warning} />
+          <StatCard label="Turmas" value={stats.classes} icon={<BookOpen size={20} color={theme.success} />} color={theme.success} onPress={() => router.push('/modal-classes')} />
+          <StatCard label="Cursos" value={stats.courses} icon={<TrendingUp size={20} color={theme.warning} />} color={theme.warning} onPress={() => router.push('/modal-courses')} />
         </View>
 
         {stats.occurrences > 0 && (
@@ -174,18 +175,25 @@ export default function AdminDashboard() {
           <Text style={styles.sectionLabel}>Ações Rápidas</Text>
           <View style={styles.actionsGrid}>
             {[
-              { label: 'Novo Usuário', icon: <Users size={20} color={theme.primary} />, desc: 'Cadastrar aluno ou professor' },
-              { label: 'Nova Turma', icon: <BookOpen size={20} color={theme.secondary} />, desc: 'Criar turma acadêmica' },
-              { label: 'Comunicado', icon: <Bell size={20} color={theme.warning} />, desc: 'Enviar para comunidade' },
-              { label: 'Relatório', icon: <TrendingUp size={20} color={theme.success} />, desc: 'Ver indicadores' },
+            { label: 'Novo Usuário', icon: <Users size={20} color={theme.primary} />, desc: 'Cadastrar aluno, professor, Coordenador...', onPress: () => router.push('/modal-new-user') },
+            { label: 'Nova Turma', icon: <BookOpen size={20} color={theme.secondary} />, desc: 'Criar turma acadêmica', onPress: () => router.push('/modal-new-class') },
+            { label: 'Comunicado', icon: <Bell size={20} color={theme.warning} />, desc: 'Enviar para comunidade' },
+            { label: 'Relatório', icon: <TrendingUp size={20} color={theme.success} />, desc: 'Ver indicadores' },
             ].map(action => (
-              <Card key={action.label} style={styles.actionCard} padding={14}>
-                <View style={[styles.actionIcon, { backgroundColor: theme.bg }]}>
-                  {action.icon}
-                </View>
-                <Text style={styles.actionLabel}>{action.label}</Text>
-                <Text style={styles.actionDesc}>{action.desc}</Text>
-              </Card>
+              <TouchableOpacity
+                key={action.label}
+                style={styles.actionCard}
+                activeOpacity={'onPress' in action ? 0.75 : 1}
+                onPress={'onPress' in action ? (action as any).onPress : undefined}
+              >
+                <Card style={{ flex: 1 }} padding={14}>
+                  <View style={[styles.actionIcon, { backgroundColor: theme.bg }]}>
+                    {action.icon}
+                  </View>
+                  <Text style={styles.actionLabel}>{action.label}</Text>
+                  <Text style={styles.actionDesc}>{action.desc}</Text>
+                </Card>
+              </TouchableOpacity>
             ))}
           </View>
         </View>

@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (currentInstitution && currentRole) {
-      const perms = await getRolePermissions(currentRole);
+        const perms = await getRolePermissions(currentRole, currentInstitution.id);
       setUser({
         id: userId,
         email: sess.user.email!,
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         currentRole,
         permissions: perms,
         settings: settings ?? null,
-        mfa: mfaState as UserMFA ?? null,
+        mfa: mfaState as unknown as UserMFA ?? null,
         sessions: sessionsList,
       });
     } else {
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         currentRole: null,
         permissions: [],
         settings: settings ?? null,
-        mfa: mfaState as UserMFA ?? null,
+        mfa: mfaState as unknown as UserMFA ?? null,
         sessions: sessionsList,
       });
     }
@@ -197,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchInstitution = async (institution: Institution, role: UserRole) => {
     if (!user) return;
-    const perms = await getRolePermissions(role);
+    const perms = await getRolePermissions(role, institution.id);
     await setUserActiveContext(user.id, institution.id, role, user.profile.id);
     setUser({
       ...user,

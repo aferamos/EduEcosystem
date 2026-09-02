@@ -47,7 +47,7 @@ export default function ModalNewClass() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>Nova Turma</Text>
         <TouchableOpacity onPress={() => router.back()}>

@@ -20,6 +20,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -82,7 +83,7 @@ export default function SettingsScreen() {
       icon: <Shield size={20} color={theme.success} />,
       label: 'Controle de Acesso',
       desc: 'Gerenciar permissões e papéis',
-      onPress: () => {},
+      onPress: () => router.push('/(admin)/access-control'),
     },
     {
       icon: <Bell size={20} color={theme.warning} />,

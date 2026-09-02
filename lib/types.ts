@@ -33,7 +33,7 @@ export interface UserRoleRecord {
   role: UserRole;
   is_active: boolean;
   created_at: string;
-  institution?: Institution;
+  institution?: Institution | null;
   profile?: Profile;
 }
 

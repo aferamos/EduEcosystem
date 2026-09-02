@@ -1,0 +1,243 @@
+## Implementação — Controle de Acesso Acadêmico
+
+Implemente a funcionalidade acessada em:
+
+**Configurações → Configurações do Sistema → Controle de acesso**
+Descrição do botão: **“Gerenciar permissões e papéis”**
+
+### 1. Objetivo
+
+Criar uma página completa de **Controle de Acesso**, integrada à arquitetura atual do EduEcosystem, permitindo que a instituição gerencie **papéis (perfis), permissões 
+e acessos dos usuários** de acordo com o contexto acadêmico.
+
+A implementação deve respeitar a arquitetura existente do projeto e **não criar estruturas paralelas ou duplicadas**.
+
+Antes de desenvolver, analise o código existente, especialmente:
+
+* autenticação;
+* tabela/estrutura de usuários;
+* pefis_usuario;
+* permissões existentes;
+* instituições/tenants;
+* perfis;
+* serviços de autenticação;
+* RLS do Supabase;
+* navegação e layout das configurações;
+* componentes visuais já utilizados no projeto.
+
+Reutilize componentes, serviços, hooks, tipos e padrões existentes sempre que possível.
+
+---
+
+## 2. Visão institucional
+
+O EduEcosystem é um sistema **acadêmico e multi-institucional**.
+
+Portanto, o Controle de Acesso deve considerar a **visão da instituição** e não somente usuários isolados.
+
+A instituição deve conseguir visualizar e administrar:
+
+* quantidade de usuários;
+* usuários ativos e inativos;
+* distribuição dos usuários por papel;
+* permissões atribuídas;
+* papéis disponíveis;
+* usuários sem papel;
+* usuários com múltiplos papéis, quando permitido;
+* nível de acesso de cada papel;
+* situação dos acessos;
+* indicadores gerais de segurança e governança de acesso.
+
+A solução deve funcionar considerando o contexto da instituição atualmente selecionada pelo usuário.
+
+---
+
+## 3. Página Controle de Acesso
+
+Criar uma nova página com visual profissional e consistente com o restante do EduEcosystem.
+
+Título:
+
+**Controle de Acesso**
+
+Subtítulo:
+
+**Gerencie papéis, permissões e níveis de acesso dos usuários da instituição.**
+
+A página deve possuir uma visão geral com indicadores, por exemplo:
+
+Os indicadores devem ser obtidos dinamicamente do banco de dados. Não utilizar números fixos ou dados fictícios.
+
+---
+
+## 4. Abas ou seções da página
+
+Organizar a funcionalidade em seções claras:
+
+### Visão geral
+
+Apresentar os indicadores institucionais e um resumo da situação dos acessos.
+
+### Papéis
+
+Listar os papéis existentes no sistema.
+
+Exemplos acadêmicos:
+
+* Administrador da Instituição
+* Coordenador
+* Professor
+* Aluno
+* Responsável
+
+Não criar esses papéis automaticamente caso já exista uma estrutura de perfis no banco. Primeiro verificar o que já existe.
+
+Para cada papel apresentar:
+
+* nome;
+* email;
+* status;
+* nível de acesso;
+* quantidade de permissões;
+* ações disponíveis.
+
+Permitir:
+
+* criar papel;
+* editar papel;
+* ativar/desativar papel;
+* visualizar permissões;
+
+Papéis protegidos do sistema não devem ser excluídos.
+
+---
+
+## 5. Permissões
+
+Criar uma interface para visualizar e administrar permissões.
+
+Organizar permissões por módulos acadêmicos.
+
+Exemplos:
+
+### Acadêmico
+
+* visualizar alunos;
+* editar alunos;
+* excluir alunos;
+* visualizar turmas;
+* gerenciar turmas;
+* visualizar disciplinas;
+* gerenciar disciplinas;
+* visualizar notas;
+* lançar notas;
+* alterar notas;
+* visualizar frequência;
+* lançar frequência.
+
+
+### Instituição
+
+* visualizar instituição;
+* editar dados institucionais;
+* gerenciar unidades;
+* gerenciar configurações.
+
+---
+
+## 6. Associação entre papel e permissões
+
+Ao selecionar um papel, permitir visualizar claramente quais permissões ele possui.
+
+Criar uma interface de seleção de permissões, preferencialmente agrupada por módulo.
+
+Exemplo:
+
+**Professor**
+
+☑ Associado as disciplinas
+☑ Lançar notas
+☑ Lançar frequência
+
+**Disciplina**
+
+☑ Associado as turmas
+
+** Turma **
+
+☑ Associado aos alunos
+
+Permitir salvar as alterações.
+
+Antes de salvar, validar permissões e respeitar as regras de segurança existentes.
+
+---
+
+## 7. Experiência visual
+
+Manter exatamente o padrão visual existente do EduEcosystem.
+
+A página deve ser:
+
+* responsiva;
+* limpa;
+* profissional;
+* adequada a um sistema acadêmico;
+* acessível;
+* consistente com as demais telas;
+* compatível com tema.
+
+Utilizar os componentes e ícones já existentes no projeto.
+
+Não introduzir uma nova biblioteca visual sem necessidade.
+
+---
+
+## 8. Banco de dados
+
+Antes de criar tabelas ou migrations, verificar a estrutura atual do Supabase.
+
+Principalmente:
+
+* perfis_usuario;
+* perfis;
+* instituições;
+* permissões;
+* relacionamentos existentes;
+* políticas RLS.
+
+Se já existir uma estrutura adequada, reutilizá-la.
+
+Somente criar novas tabelas/migrations quando realmente necessário.
+
+Toda alteração de banco deve ser feita através de migration versionada.
+
+Não apagar dados existentes.
+
+---
+
+## 9. Critérios de aceite
+
+A implementação será considerada concluída quando:
+
+1. O botão **Controle de acesso** abrir a nova página.
+2. A página estiver integrada ao layout atual.
+3. Os indicadores forem carregados dinamicamente.
+4. A instituição atual determinar o contexto dos dados.
+5. Os papéis existentes forem exibidos.
+6. As permissões forem exibidas agrupadas por módulo.
+7. For possível atribuir permissões aos papéis.
+8. For possível administrar os papéis conforme as regras de negócio.
+9. For possível visualizar/administrar os papéis dos usuários autorizados.
+10. A implementação reutilizar a arquitetura existente.
+11. Não forem criadas estruturas duplicadas desnecessariamente.
+12. O projeto continuar compilando e funcionando após a implementação.
+13. Executar validações de TypeScript/lint e corrigir eventuais erros introduzidos pela implementação.
+
+### Importante
+
+Antes de alterar qualquer código, **analise a arquitetura existente do EduEcosystem e identifique as tabelas, serviços, tipos, hooks, componentes e regras de autorização já existentes**.
+
+Não substitua a arquitetura atual sem necessidade.
+
+A prioridade é **integrar o Controle de Acesso à estrutura existente**, mantendo compatibilidade com o modelo acadêmico do EduEcosystem.

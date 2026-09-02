@@ -137,7 +137,7 @@ export default function StudentDashboard() {
             <Text style={styles.greeting}>{greeting()},</Text>
             <Text style={styles.name}>{user?.profile.full_name?.split(' ')[0] ?? 'Aluno'}</Text>
           </View>
-          <TouchableOpacity onPress={signOut} style={styles.logoutBtn}>
+          <TouchableOpacity onPress={() => signOut()} style={styles.logoutBtn}>
             <Text style={styles.logoutText}>Sair</Text>
           </TouchableOpacity>
         </View>

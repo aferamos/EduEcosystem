@@ -1,40 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { Bell, CheckCheck, MessageSquare } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
-import type { Notification, Communication } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 
 type Tab = 'notifications' | 'communications';
 
 const notifTypeConfig: Record<string, { variant: 'info' | 'warning' | 'success' | 'danger' | 'neutral'; label: string }> = {
   info: { variant: 'info', label: 'Informação' },
-  warning: { variant: 'warning', label: 'Atenção' },
-  success: { variant: 'success', label: 'Sucesso' },
-  alert: { variant: 'danger', label: 'Alerta' },
-  grade: { variant: 'info', label: 'Nota' },
-  attendance: { variant: 'warning', label: 'Frequência' },
-  occurrence: { variant: 'danger', label: 'Ocorrência' },
+  alerta: { variant: 'warning', label: 'Atenção' },
+  sucesso: { variant: 'success', label: 'Sucesso' },
+  urgente: { variant: 'danger', label: 'Urgente' },
+  nota: { variant: 'info', label: 'Nota' },
+  frequencia: { variant: 'warning', label: 'Frequência' },
+  ocorrencia: { variant: 'danger', label: 'Ocorrência' },
 };
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const [tab, setTab] = useState<Tab>('notifications');
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [communications, setCommunications] = useState<Communication[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [communications, setCommunications] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const institutionId = user?.currentInstitution?.id;
@@ -42,31 +35,53 @@ export default function NotificationsScreen() {
   const loadData = async () => {
     if (!user?.id || !institutionId) return;
     const [notifRes, commRes] = await Promise.all([
-      supabase.from('notifications')
+      // Tabela real `notificacoes` com colunas PT
+      supabase.from('notificacoes')
         .select('*')
-        .eq('recipient_id', user.id)
-        .order('created_at', { ascending: false })
+        .eq('destinatario_id', user.id)
+        .order('criado_em', { ascending: false })
         .limit(50),
-      supabase.from('communications')
-        .select('*, sender:profiles!sender_id(full_name)')
-        .eq('institution_id', institutionId)
-        .order('published_at', { ascending: false })
+      // Tabela real `comunicados` com join em `perfis`
+      supabase.from('comunicados')
+        .select('*, remetente:perfis!remetente_id(nome_completo)')
+        .eq('instituicao_id', institutionId)
+        .order('publicado_em', { ascending: false })
         .limit(30),
     ]);
-    setNotifications(notifRes.data ?? []);
-    setCommunications(commRes.data ?? []);
+    // Normaliza notificações para interface esperada
+    setNotifications((notifRes.data ?? []).map((n: any) => ({
+      id: n.id,
+      title: n.titulo,
+      message: n.mensagem,
+      type: n.tipo,
+      read: n.lida,
+      created_at: n.criado_em,
+    })));
+    // Normaliza comunicados
+    setCommunications((commRes.data ?? []).map((c: any) => ({
+      id: c.id,
+      title: c.titulo,
+      message: c.mensagem,
+      pinned: c.fixado,
+      published_at: c.publicado_em,
+      sender: c.remetente ? { full_name: c.remetente.nome_completo } : null,
+    })));
   };
 
   useEffect(() => { loadData(); }, [user?.id, institutionId]);
 
   const markAllRead = async () => {
     if (!user?.id) return;
-    await supabase.from('notifications').update({ read: true }).eq('recipient_id', user.id).eq('read', false);
+    // Escreve na tabela real `notificacoes`
+    await supabase.from('notificacoes')
+      .update({ lida: true })
+      .eq('destinatario_id', user.id)
+      .eq('lida', false);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   const markRead = async (id: string) => {
-    await supabase.from('notifications').update({ read: true }).eq('id', id);
+    await supabase.from('notificacoes').update({ lida: true }).eq('id', id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
@@ -130,9 +145,7 @@ export default function NotificationsScreen() {
                         {new Date(n.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </Text>
                     </View>
-                    <Text style={[styles.notifTitle, !n.read && styles.notifTitleUnread]}>
-                      {n.title}
-                    </Text>
+                    <Text style={[styles.notifTitle, !n.read && styles.notifTitleUnread]}>{n.title}</Text>
                     <Text style={styles.notifMsg}>{n.message}</Text>
                   </Card>
                 </TouchableOpacity>
@@ -149,20 +162,12 @@ export default function NotificationsScreen() {
           ) : (
             communications.map(comm => (
               <Card key={comm.id} style={styles.commCard} padding={14}>
-                {comm.pinned && (
-                  <View style={styles.pinnedBadge}>
-                    <Badge label="Fixado" variant="warning" />
-                  </View>
-                )}
+                {comm.pinned && <View style={styles.pinnedBadge}><Badge label="Fixado" variant="warning" /></View>}
                 <Text style={styles.commTitle}>{comm.title}</Text>
                 <Text style={styles.commMsg}>{comm.message}</Text>
                 <View style={styles.commFooter}>
-                  <Text style={styles.commSender}>
-                    {(comm as any).sender?.full_name ?? 'Escola'}
-                  </Text>
-                  <Text style={styles.commDate}>
-                    {new Date(comm.published_at).toLocaleDateString('pt-BR')}
-                  </Text>
+                  <Text style={styles.commSender}>{comm.sender?.full_name ?? 'Escola'}</Text>
+                  <Text style={styles.commDate}>{new Date(comm.published_at).toLocaleDateString('pt-BR')}</Text>
                 </View>
               </Card>
             ))

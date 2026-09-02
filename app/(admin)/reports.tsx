@@ -51,23 +51,23 @@ export default function ReportsScreen() {
 
     const [studentsRes, teachersRes, classesRes, occAllRes, occOpenRes, occResolvedRes, attendRes, gradesRes] =
       await Promise.all([
-        supabase.from('user_roles').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId).eq('role', 'aluno').eq('is_active', true),
-        supabase.from('user_roles').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId).eq('role', 'professor').eq('is_active', true),
-        supabase.from('classes').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId).eq('active', true),
-        supabase.from('occurrences').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId),
-        supabase.from('occurrences').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId).eq('status', 'open'),
-        supabase.from('occurrences').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId).eq('status', 'resolved'),
-        supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('date', today).eq('status', 'present'),
-        supabase.from('grades').select('id', { count: 'exact', head: true }).eq('status', 'graded').gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from('perfis_usuario').select('id', { count: 'exact', head: true }).eq('instituicao_id', institutionId).eq('perfil', 'aluno').eq('ativo', true),
+        supabase.from('perfis_usuario').select('id', { count: 'exact', head: true }).eq('instituicao_id', institutionId).eq('perfil', 'professor').eq('ativo', true),
+        supabase.from('turmas').select('id', { count: 'exact', head: true }).eq('instituicao_id', institutionId).eq('ativo', true),
+        supabase.from('ocorrencias').select('id', { count: 'exact', head: true }).eq('instituicao_id', institutionId),
+        supabase.from('ocorrencias').select('id', { count: 'exact', head: true }).eq('instituicao_id', institutionId).eq('situacao', 'aberta'),
+        supabase.from('ocorrencias').select('id', { count: 'exact', head: true }).eq('instituicao_id', institutionId).eq('situacao', 'resolvida'),
+        supabase.from('frequencias').select('id', { count: 'exact', head: true }).eq('data', today).eq('situacao', 'presente'),
+        supabase.from('notas').select('id', { count: 'exact', head: true }).eq('situacao', 'lancada').gte('criado_em', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
       ]);
 
     const { data: occTypes } = await supabase
-      .from('occurrences')
-      .select('type')
-      .eq('institution_id', institutionId);
+      .from('ocorrencias')
+      .select('tipo')
+      .eq('instituicao_id', institutionId);
 
     const byType: Record<string, number> = {};
-    (occTypes ?? []).forEach(o => { byType[o.type] = (byType[o.type] ?? 0) + 1; });
+    (occTypes ?? []).forEach((o: any) => { byType[o.tipo] = (byType[o.tipo] ?? 0) + 1; });
 
     setData({
       totalStudents: studentsRes.count ?? 0,
@@ -91,13 +91,13 @@ export default function ReportsScreen() {
   };
 
   const typeLabel = (t: string) => ({
-    disciplinary: 'Disciplinar', academic: 'Acadêmica',
-    behavioral: 'Comportamental', commendation: 'Elogio', observation: 'Observação',
+    disciplinar: 'Disciplinar', academico: 'Acadêmica',
+    comportamental: 'Comportamental', elogio: 'Elogio', observacao: 'Observação',
   }[t] ?? t);
 
   const typeColor = (t: string) => ({
-    disciplinary: theme.danger, academic: theme.warning,
-    behavioral: theme.warning, commendation: theme.success, observation: theme.secondary,
+    disciplinar: theme.danger, academico: theme.warning,
+    comportamental: theme.warning, elogio: theme.success, observacao: theme.secondary,
   }[t] ?? theme.textMuted);
 
   const maxOcc = Math.max(1, ...Object.values(data.occurrencesByType));
@@ -150,10 +150,7 @@ export default function ReportsScreen() {
                 <View style={styles.barTrack}>
                   <View style={[
                     styles.barFill,
-                    {
-                      width: `${(count / maxOcc) * 100}%` as any,
-                      backgroundColor: typeColor(type),
-                    },
+                    { width: `${(count / maxOcc) * 100}%` as any, backgroundColor: typeColor(type) },
                   ]} />
                 </View>
                 <Text style={styles.barCount}>{count}</Text>
@@ -167,20 +164,8 @@ export default function ReportsScreen() {
           {data.totalOccurrences > 0 ? (
             <>
               <View style={styles.resolutionBar}>
-                <View style={[
-                  styles.resolutionFill,
-                  {
-                    flex: data.resolvedOccurrences,
-                    backgroundColor: theme.success,
-                  },
-                ]} />
-                <View style={[
-                  styles.resolutionFill,
-                  {
-                    flex: data.totalOccurrences - data.resolvedOccurrences,
-                    backgroundColor: theme.danger + '40',
-                  },
-                ]} />
+                <View style={[styles.resolutionFill, { flex: data.resolvedOccurrences, backgroundColor: theme.success }]} />
+                <View style={[styles.resolutionFill, { flex: data.totalOccurrences - data.resolvedOccurrences, backgroundColor: theme.danger + '40' }]} />
               </View>
               <View style={styles.resolutionLegend}>
                 <View style={styles.legendItem}>

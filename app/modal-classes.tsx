@@ -7,25 +7,32 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { X, Users, BookOpen } from 'lucide-react-native';
+import { X, Users } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Class } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 
+interface Turma {
+  id: string;
+  nome: string;
+  ano: number;
+  turno: string | null;
+  curso?: { nome: string } | null;
+}
+
 const shiftLabel = (s: string | null) =>
-  ({ morning: 'Manhã', afternoon: 'Tarde', evening: 'Noite', full: 'Integral' }[s ?? ''] ?? s ?? '—');
+  ({ manha: 'Manhã', tarde: 'Tarde', noite: 'Noite', integral: 'Integral' }[s ?? ''] ?? s ?? '—');
 
 export default function ModalClasses() {
   const { user } = useAuth();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [classes, setClasses] = useState<Turma[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const institutionId = user?.currentInstitution?.id;
@@ -33,11 +40,11 @@ export default function ModalClasses() {
   const load = async () => {
     if (!institutionId) return;
     const { data } = await supabase
-      .from('classes')
-      .select('*, course:courses(name)')
-      .eq('institution_id', institutionId)
-      .eq('active', true)
-      .order('name');
+      .from('turmas')
+      .select('*, curso:cursos(nome)')
+      .eq('instituicao_id', institutionId)
+      .eq('ativo', true)
+      .order('nome');
     setClasses(data ?? []);
   };
 
@@ -82,13 +89,11 @@ export default function ModalClasses() {
                   <Users size={20} color={theme.success} />
                 </View>
                 <View style={styles.itemInfo}>
-                  <Text style={[styles.itemName, { color: theme.text }]}>{cl.name}</Text>
+                  <Text style={[styles.itemName, { color: theme.text }]}>{cl.nome}</Text>
                   <View style={styles.itemMeta}>
-                    <Badge label={`${cl.year}`} variant="neutral" />
-                    <Badge label={shiftLabel(cl.shift)} variant="info" />
-                    {(cl as any).course?.name && (
-                      <Text style={styles.metaText}>{(cl as any).course.name}</Text>
-                    )}
+                    <Badge label={`${cl.ano}`} variant="neutral" />
+                    <Badge label={shiftLabel(cl.turno)} variant="info" />
+                    {cl.curso?.nome && <Text style={styles.metaText}>{cl.curso.nome}</Text>}
                   </View>
                 </View>
               </View>
@@ -106,11 +111,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
-  closeBtn: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 8,
-    borderRadius: 20,
-  },
+  closeBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 20 },
   list: { padding: 16, gap: 10 },
   itemCard: {},
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

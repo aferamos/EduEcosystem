@@ -57,12 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadUserData = useCallback(async (sess: Session) => {
     const userId = sess.user.id;
 
-    const [profile, roles, activeContext, settings, permissions, mfaState, sessionsList] = await Promise.all([
+    const [profile, roles, activeContext, settings, mfaState, sessionsList] = await Promise.all([
       getUserProfile(userId),
       getUserRoles(userId),
       getUserActiveContext(userId),
       getUserSettings(userId),
-      getRolePermissions('student'),
       getMFAState(userId),
       getUserSessions(userId),
     ]);
@@ -87,7 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       currentInstitution = firstRole.institution ?? null;
       currentRole = firstRole.role;
       if (currentInstitution) {
-        await setUserActiveContext(userId, currentInstitution.id, currentRole, profile?.id ?? null);
+        // Passa null para perfil_id — evita FK violation se perfil ainda não existe
+        await setUserActiveContext(userId, currentInstitution.id, currentRole, null);
       }
     }
 
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser({
         id: userId,
         email: sess.user.email!,
-        profile: profile ?? { id: userId, full_name: '', avatar_url: null, phone: null, birth_date: null, created_at: '', updated_at: '' },
+        profile: profile ?? { id: userId, full_name: sess.user.email?.split('@')[0] ?? '', avatar_url: null, phone: null, birth_date: null, created_at: '', updated_at: '' },
         roles: activeRoles,
         currentInstitution,
         currentRole,
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser({
         id: userId,
         email: sess.user.email!,
-        profile: profile ?? { id: userId, full_name: '', avatar_url: null, phone: null, birth_date: null, created_at: '', updated_at: '' },
+        profile: profile ?? { id: userId, full_name: sess.user.email?.split('@')[0] ?? '', avatar_url: null, phone: null, birth_date: null, created_at: '', updated_at: '' },
         roles: activeRoles,
         currentInstitution: null,
         currentRole: null,

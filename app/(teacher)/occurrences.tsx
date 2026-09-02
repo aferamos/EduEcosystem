@@ -8,12 +8,11 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { AlertTriangle, Plus, X, ChevronDown, CheckCircle } from 'lucide-react-native';
+import { AlertTriangle, Plus, X, ChevronDown } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Occurrence } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -40,14 +39,14 @@ export default function OccurrencesScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const TAB_BAR_HEIGHT = 56 + insets.bottom;
-  const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
+  const [occurrences, setOccurrences] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
   const [showStudentPicker, setShowStudentPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    student_id: '', student_name: '', type: 'academic', title: '', description: '', severity: 'medium',
+    student_id: '', student_name: '', type: 'academico', title: '', description: '', severity: 'media',
   });
   const [formError, setFormError] = useState('');
 
@@ -56,22 +55,34 @@ export default function OccurrencesScreen() {
   const loadOccurrences = async () => {
     if (!institutionId) return;
     const { data } = await supabase
-      .from('occurrences')
-      .select('*, student_profile:profiles!student_id(full_name)')
-      .eq('reported_by', user?.id)
-      .order('created_at', { ascending: false });
-    setOccurrences((data as any) ?? []);
+      .from('ocorrencias')
+      .select('*, perfil_aluno:perfis!aluno_id(nome_completo)')
+      .eq('registrado_por', user?.id)
+      .order('criado_em', { ascending: false });
+    setOccurrences((data ?? []).map((o: any) => ({
+      ...o,
+      title: o.titulo,
+      type: o.tipo,
+      severity: o.gravidade,
+      status: o.situacao,
+      description: o.descricao,
+      created_at: o.criado_em,
+      student_profile: o.perfil_aluno ? { full_name: o.perfil_aluno.nome_completo } : null,
+    })));
   };
 
   const loadStudents = async () => {
     if (!institutionId) return;
     const { data } = await supabase
-      .from('user_roles')
-      .select('user_id, profile:profiles!user_id(full_name)')
-      .eq('institution_id', institutionId)
-      .eq('role', 'aluno')
-      .eq('is_active', true);
-    setStudents((data ?? []).map((r: any) => ({ id: r.user_id, name: r.profile?.full_name ?? 'Aluno' })));
+      .from('perfis_usuario')
+      .select('usuario_id, perfil_join:perfis!usuario_id(nome_completo)')
+      .eq('instituicao_id', institutionId)
+      .eq('perfil', 'aluno')
+      .eq('ativo', true);
+    setStudents((data ?? []).map((r: any) => ({
+      id: r.usuario_id,
+      name: r.perfil_join?.nome_completo ?? 'Aluno',
+    })));
   };
 
   useEffect(() => { loadOccurrences(); loadStudents(); }, [institutionId]);
@@ -86,23 +97,24 @@ export default function OccurrencesScreen() {
     setFormError('');
     if (!form.student_id || !form.title) { setFormError('Aluno e título são obrigatórios.'); return; }
     setSaving(true);
-    const { error } = await supabase.from('occurrences').insert({
-      institution_id: institutionId,
-      student_id: form.student_id,
-      reported_by: user?.id,
-      type: form.type,
-      title: form.title,
-      description: form.description || null,
-      severity: form.severity,
+    // Escreve na tabela real `ocorrencias` com colunas PT
+    const { error } = await supabase.from('ocorrencias').insert({
+      instituicao_id: institutionId,
+      aluno_id: form.student_id,
+      registrado_por: user?.id,
+      tipo: form.type,
+      titulo: form.title,
+      descricao: form.description || null,
+      gravidade: form.severity,
     });
     setSaving(false);
     if (error) { setFormError(error.message); return; }
     setShowModal(false);
-    setForm({ student_id: '', student_name: '', type: 'academic', title: '', description: '', severity: 'medium' });
+    setForm({ student_id: '', student_name: '', type: 'academico', title: '', description: '', severity: 'media' });
     await loadOccurrences();
   };
 
-  const typeOptions = ['disciplinar','academico','comportamental','elogio','observacao'];
+  const typeOptions = ['disciplinar', 'academico', 'comportamental', 'elogio', 'observacao'];
   const typeLabel = (t: string) => ({ disciplinar: 'Disciplinar', academico: 'Acadêmica', comportamental: 'Comportamental', elogio: 'Elogio', observacao: 'Observação' }[t] ?? t);
   const statusLabel = (s: string) => ({ aberta: 'Aberta', em_andamento: 'Em Andamento', resolvida: 'Resolvida', encerrada: 'Encerrada' }[s] ?? s);
 
@@ -125,30 +137,27 @@ export default function OccurrencesScreen() {
             description="Registre ocorrências acadêmicas e disciplinares dos alunos."
           />
         ) : (
-          occurrences.map(occ => {
-            const sp = (occ as any).student_profile;
-            return (
-              <Card key={occ.id} style={styles.occCard} padding={14}>
-                <View style={styles.occHeader}>
-                  <Badge label={typeLabel(occ.type)} variant={TYPE_COLORS[occ.type] ?? 'neutral'} />
-                  <Badge label={statusLabel(occ.status)} variant={STATUS_COLORS[occ.status] ?? 'neutral'} />
-                  <Text style={styles.occDate}>
-                    {new Date(occ.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                  </Text>
-                </View>
-                <Text style={styles.occTitle}>{occ.title}</Text>
-                <Text style={styles.occStudent}>Aluno: {sp?.full_name ?? '–'}</Text>
-                {occ.description && (
-                  <Text style={styles.occDesc} numberOfLines={2}>{occ.description}</Text>
-                )}
-              </Card>
-            );
-          })
+          occurrences.map(occ => (
+            <Card key={occ.id} style={styles.occCard} padding={14}>
+              <View style={styles.occHeader}>
+                <Badge label={typeLabel(occ.type)} variant={TYPE_COLORS[occ.type] ?? 'neutral'} />
+                <Badge label={statusLabel(occ.status)} variant={STATUS_COLORS[occ.status] ?? 'neutral'} />
+                <Text style={styles.occDate}>
+                  {new Date(occ.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                </Text>
+              </View>
+              <Text style={styles.occTitle}>{occ.title}</Text>
+              <Text style={styles.occStudent}>Aluno: {occ.student_profile?.full_name ?? '–'}</Text>
+              {occ.description && (
+                <Text style={styles.occDesc} numberOfLines={2}>{occ.description}</Text>
+              )}
+            </Card>
+          ))
         )}
       </ScrollView>
 
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: theme.primary }]}
+        style={[styles.fab, { backgroundColor: theme.primary, bottom: TAB_BAR_HEIGHT + 16 }]}
         onPress={() => setShowModal(true)}
       >
         <Plus size={22} color="#FFFFFF" />
@@ -205,15 +214,15 @@ export default function OccurrencesScreen() {
 
             <Text style={styles.fieldLabel}>Severidade</Text>
             <View style={styles.typeGrid}>
-              {['low','medium','high'].map(s => (
+              {['baixa', 'media', 'alta'].map(s => (
                 <TouchableOpacity key={s}
                   onPress={() => setForm(f => ({ ...f, severity: s }))}
                   style={[styles.typeBtn, form.severity === s && {
-                    backgroundColor: s === 'high' ? theme.danger : s === 'medium' ? theme.warning : theme.success,
-                    borderColor: s === 'high' ? theme.danger : s === 'medium' ? theme.warning : theme.success,
+                    backgroundColor: s === 'alta' ? theme.danger : s === 'media' ? theme.warning : theme.success,
+                    borderColor: s === 'alta' ? theme.danger : s === 'media' ? theme.warning : theme.success,
                   }]}>
                   <Text style={[styles.typeBtnText, form.severity === s && { color: '#FFFFFF' }]}>
-                    {{ low: 'Baixa', medium: 'Média', high: 'Alta' }[s]}
+                    {{ baixa: 'Baixa', media: 'Média', alta: 'Alta' }[s]}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -240,7 +249,7 @@ const styles = StyleSheet.create({
   occTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
   occStudent: { fontSize: 12, color: '#6B7280' },
   occDesc: { fontSize: 13, color: '#374151', lineHeight: 18 },
-  fab: { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
+  fab: { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
   modal: { flex: 1, backgroundColor: '#FFFFFF' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', paddingTop: 56 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },

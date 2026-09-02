@@ -1,11 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { BookOpen, TrendingUp } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
@@ -31,50 +25,55 @@ export default function StudentGrades() {
   const loadGrades = async () => {
     if (!user?.id) return;
 
-    const { data: enrollments } = await supabase
-      .from('student_enrollments')
-      .select('class_id')
-      .eq('student_id', user.id)
-      .eq('status', 'active');
+    // Busca matrículas via tabela real `matriculas`
+    const { data: matriculas } = await supabase
+      .from('matriculas')
+      .select('turma_id')
+      .eq('aluno_id', user.id)
+      .eq('situacao', 'ativo');
 
-    const classIds = (enrollments ?? []).map(e => e.class_id);
-    if (classIds.length === 0) { setSubjectData([]); return; }
+    const turmaIds = (matriculas ?? []).map((m: any) => m.turma_id);
+    if (turmaIds.length === 0) { setSubjectData([]); return; }
 
-    const { data: classSubjects } = await supabase
-      .from('class_subjects')
-      .select('*, subject:subjects(name)')
-      .in('class_id', classIds);
+    // Busca turma_disciplinas
+    const { data: turmaDiscs } = await supabase
+      .from('turma_disciplinas')
+      .select('*, disciplina:disciplinas(nome)')
+      .in('turma_id', turmaIds);
 
-    if (!classSubjects || classSubjects.length === 0) { setSubjectData([]); return; }
+    if (!turmaDiscs || turmaDiscs.length === 0) { setSubjectData([]); return; }
 
-    const csIds = classSubjects.map(cs => cs.id);
-    const { data: assessments } = await supabase
-      .from('assessments')
+    const tdIds = turmaDiscs.map((td: any) => td.id);
+
+    // Busca avaliações
+    const { data: avaliacoes } = await supabase
+      .from('avaliacoes')
       .select('*')
-      .in('class_subject_id', csIds);
+      .in('turma_disciplina_id', tdIds);
 
-    const assessmentIds = (assessments ?? []).map(a => a.id);
-    let gradesData: any[] = [];
-    if (assessmentIds.length > 0) {
+    const avaliacaoIds = (avaliacoes ?? []).map((a: any) => a.id);
+
+    let notasData: any[] = [];
+    if (avaliacaoIds.length > 0) {
       const { data } = await supabase
-        .from('grades')
+        .from('notas')
         .select('*')
-        .eq('student_id', user.id)
-        .in('assessment_id', assessmentIds);
-      gradesData = data ?? [];
+        .eq('aluno_id', user.id)
+        .in('avaliacao_id', avaliacaoIds);
+      notasData = data ?? [];
     }
 
-    const gradeMap: Record<string, any> = {};
-    gradesData.forEach(g => { gradeMap[g.assessment_id] = g; });
+    const notaMap: Record<string, any> = {};
+    notasData.forEach(n => { notaMap[n.avaliacao_id] = n; });
 
-    const result: SubjectGrades[] = classSubjects.map(cs => {
-      const csAssessments = (assessments ?? []).filter(a => a.class_subject_id === cs.id);
-      const gradedItems = csAssessments.map(a => ({
-        title: a.title,
-        score: gradeMap[a.id]?.score ?? null,
-        maxScore: a.max_score,
-        type: a.type,
-        date: a.date,
+    const result: SubjectGrades[] = turmaDiscs.map((td: any) => {
+      const tdAvaliacoes = (avaliacoes ?? []).filter((a: any) => a.turma_disciplina_id === td.id);
+      const gradedItems = tdAvaliacoes.map((a: any) => ({
+        title: a.titulo,
+        score: notaMap[a.id]?.nota ?? null,
+        maxScore: a.nota_maxima,
+        type: a.tipo,
+        date: a.data,
       }));
 
       const scored = gradedItems.filter(g => g.score !== null);
@@ -89,8 +88,8 @@ export default function StudentGrades() {
         : 'failed';
 
       return {
-        subjectName: (cs as any).subject?.name ?? 'Disciplina',
-        classSubjectId: cs.id,
+        subjectName: td.disciplina?.nome ?? 'Disciplina',
+        classSubjectId: td.id,
         grades: gradedItems,
         average: avg !== null ? parseFloat(avg.toFixed(1)) : null,
         status,
@@ -122,7 +121,7 @@ export default function StudentGrades() {
     in_progress: { label: 'Em Andamento', variant: 'neutral' },
   };
 
-  const typeLabel = (t: string) => ({ exam: 'P', test: 'T', assignment: 'Tr', project: 'Pr', quiz: 'Q', recovery: 'R' }[t] ?? 'A');
+  const typeLabel = (t: string) => ({ prova: 'P', teste: 'T', trabalho: 'Tr', projeto: 'Pr', quiz: 'Q', recuperacao: 'R' }[t] ?? 'A');
 
   return (
     <View style={[styles.flex, { backgroundColor: theme.bg }]}>
@@ -164,10 +163,7 @@ export default function StudentGrades() {
                   <View style={styles.progressBar}>
                     <View style={[
                       styles.progressFill,
-                      {
-                        width: `${Math.min(100, (sd.average / 10) * 100)}%` as any,
-                        backgroundColor: avgColor(sd.average),
-                      },
+                      { width: `${Math.min(100, (sd.average / 10) * 100)}%` as any, backgroundColor: avgColor(sd.average) },
                     ]} />
                     <View style={[styles.progressMark, { left: '70%' as any }]} />
                   </View>
@@ -207,7 +203,7 @@ export default function StudentGrades() {
               </Text>
             </View>
             <View style={styles.statusSummary}>
-              {['approved','recovery','failed'].map(st => {
+              {['approved', 'recovery', 'failed'].map(st => {
                 const count = subjectData.filter(s => s.status === st).length;
                 return count > 0 ? (
                   <Badge key={st} label={`${count} ${statusConfig[st as keyof typeof statusConfig].label}`} variant={statusConfig[st as keyof typeof statusConfig].variant} size="md" />

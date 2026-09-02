@@ -53,10 +53,11 @@ export default function SettingsScreen() {
     if (!institution) return;
     setSaving(true);
     const preset = PRESET_COLORS[selectedColor];
-    await supabase.from('institutions').update({
-      name: editName,
-      primary_color: preset.primary,
-      secondary_color: preset.secondary,
+    // Escreve diretamente na tabela real `instituicoes` com colunas PT
+    await supabase.from('instituicoes').update({
+      nome: editName,
+      cor_primaria: preset.primary,
+      cor_secundaria: preset.secondary,
     }).eq('id', institution.id);
     setSaving(false);
     setSaved(true);

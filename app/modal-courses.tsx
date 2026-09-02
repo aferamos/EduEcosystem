@@ -13,10 +13,17 @@ import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Course } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
+
+interface Curso {
+  id: string;
+  nome: string;
+  nivel: string;
+  duracao_anos: number;
+  ativo: boolean;
+}
 
 const levelLabel = (l: string) =>
   ({ fundamental: 'Fund.', medio: 'Médio', superior: 'Superior', tecnico: 'Técnico' }[l] ?? l);
@@ -25,7 +32,7 @@ export default function ModalCourses() {
   const { user } = useAuth();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<Curso[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const institutionId = user?.currentInstitution?.id;
@@ -33,11 +40,11 @@ export default function ModalCourses() {
   const load = async () => {
     if (!institutionId) return;
     const { data } = await supabase
-      .from('courses')
+      .from('cursos')
       .select('*')
-      .eq('institution_id', institutionId)
-      .eq('active', true)
-      .order('name');
+      .eq('instituicao_id', institutionId)
+      .eq('ativo', true)
+      .order('nome');
     setCourses(data ?? []);
   };
 
@@ -82,11 +89,11 @@ export default function ModalCourses() {
                   <GraduationCap size={20} color={theme.warning} />
                 </View>
                 <View style={styles.itemInfo}>
-                  <Text style={[styles.itemName, { color: theme.text }]}>{c.name}</Text>
+                  <Text style={[styles.itemName, { color: theme.text }]}>{c.nome}</Text>
                   <View style={styles.itemMeta}>
-                    <Badge label={levelLabel(c.level)} variant="warning" />
+                    <Badge label={levelLabel(c.nivel)} variant="warning" />
                     <Text style={styles.metaText}>
-                      {c.duration_years} ano{c.duration_years > 1 ? 's' : ''}
+                      {c.duracao_anos} ano{c.duracao_anos > 1 ? 's' : ''}
                     </Text>
                   </View>
                 </View>
@@ -105,11 +112,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
-  closeBtn: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 8,
-    borderRadius: 20,
-  },
+  closeBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 20 },
   list: { padding: 16, gap: 10 },
   itemCard: {},
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

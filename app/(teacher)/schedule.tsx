@@ -10,15 +10,22 @@ import { CalendarDays, Clock, BookOpen } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
-import type { Event } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 
+interface Evento {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  data_evento: string;
+  tipo: string;
+}
+
 export default function ScheduleScreen() {
   const { user } = useAuth();
   const theme = useTheme();
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<Evento[]>([]);
   const [myClasses, setMyClasses] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -28,18 +35,21 @@ export default function ScheduleScreen() {
     if (!institutionId || !user?.id) return;
 
     const today = new Date().toISOString().split('T')[0];
+
+    // Busca na tabela real `eventos` com colunas PT
     const { data: evts } = await supabase
-      .from('events')
+      .from('eventos')
       .select('*')
-      .eq('institution_id', institutionId)
-      .gte('event_date', today)
-      .order('event_date')
+      .eq('instituicao_id', institutionId)
+      .gte('data_evento', today)
+      .order('data_evento')
       .limit(20);
 
+    // Busca na tabela real `turma_disciplinas` com colunas PT
     const { data: cs } = await supabase
-      .from('class_subjects')
-      .select('*, subject:subjects(name), class:classes(name, year, shift)')
-      .eq('teacher_id', user.id);
+      .from('turma_disciplinas')
+      .select('*, disciplina:disciplinas(nome), turma:turmas(nome, ano, turno)')
+      .eq('professor_id', user.id);
 
     setEvents(evts ?? []);
     setMyClasses(cs ?? []);
@@ -54,21 +64,21 @@ export default function ScheduleScreen() {
   };
 
   const eventTypeConfig: Record<string, { color: string; variant: 'danger' | 'warning' | 'info' | 'success' | 'neutral' }> = {
-    holiday: { color: theme.success, variant: 'success' },
-    exam: { color: theme.danger, variant: 'danger' },
-    meeting: { color: theme.warning, variant: 'warning' },
-    activity: { color: theme.secondary, variant: 'info' },
-    general: { color: theme.primary, variant: 'primary' as any },
+    feriado: { color: theme.success, variant: 'success' },
+    avaliacao: { color: theme.danger, variant: 'danger' },
+    reuniao: { color: theme.warning, variant: 'warning' },
+    atividade: { color: theme.secondary, variant: 'info' },
+    geral: { color: theme.primary, variant: 'neutral' },
   };
 
-  const typeLabel = (t: string) => ({ holiday: 'Feriado', exam: 'Avaliação', meeting: 'Reunião', activity: 'Atividade', general: 'Geral' }[t] ?? t);
-  const shiftLabel = (s: string) => ({ morning: 'Manhã', afternoon: 'Tarde', evening: 'Noite', full: 'Integral' }[s] ?? s);
+  const typeLabel = (t: string) => ({ feriado: 'Feriado', avaliacao: 'Avaliação', reuniao: 'Reunião', atividade: 'Atividade', geral: 'Geral' }[t] ?? t);
+  const shiftLabel = (s: string) => ({ manha: 'Manhã', tarde: 'Tarde', noite: 'Noite', integral: 'Integral' }[s] ?? s);
 
-  const groupByDate = (evts: Event[]) => {
-    const groups: Record<string, Event[]> = {};
+  const groupByDate = (evts: Evento[]) => {
+    const groups: Record<string, Evento[]> = {};
     evts.forEach(e => {
-      if (!groups[e.event_date]) groups[e.event_date] = [];
-      groups[e.event_date].push(e);
+      if (!groups[e.data_evento]) groups[e.data_evento] = [];
+      groups[e.data_evento].push(e);
     });
     return groups;
   };
@@ -93,20 +103,20 @@ export default function ScheduleScreen() {
             <Text style={styles.emptyInline}>Nenhuma turma atribuída.</Text>
           </Card>
         ) : (
-          myClasses.map(cs => (
+          myClasses.map((cs: any) => (
             <Card key={cs.id} style={styles.classCard} padding={14}>
               <View style={styles.classRow}>
                 <View style={[styles.classIcon, { backgroundColor: theme.primary + '20' }]}>
                   <BookOpen size={18} color={theme.primary} />
                 </View>
                 <View style={styles.classInfo}>
-                  <Text style={styles.subjectName}>{cs.subject?.name}</Text>
+                  <Text style={styles.subjectName}>{cs.disciplina?.nome}</Text>
                   <View style={styles.classMeta}>
-                    <Text style={styles.className}>{cs.class?.name}</Text>
-                    <Badge label={shiftLabel(cs.class?.shift ?? '')} variant="info" />
+                    <Text style={styles.className}>{cs.turma?.nome}</Text>
+                    <Badge label={shiftLabel(cs.turma?.turno ?? '')} variant="info" />
                     <View style={styles.hoursRow}>
                       <Clock size={11} color={theme.textMuted} />
-                      <Text style={styles.hoursText}>{cs.weekly_hours}h/sem</Text>
+                      <Text style={styles.hoursText}>{cs.horas_semanais}h/sem</Text>
                     </View>
                   </View>
                 </View>
@@ -131,16 +141,14 @@ export default function ScheduleScreen() {
                 })}
               </Text>
               {dayEvents.map(evt => {
-                const cfg = eventTypeConfig[evt.type] ?? eventTypeConfig.general;
+                const cfg = eventTypeConfig[evt.tipo] ?? eventTypeConfig.geral;
                 return (
                   <Card key={evt.id} style={[styles.eventCard, { borderLeftColor: cfg.color }]} padding={14}>
                     <View style={styles.eventHeader}>
-                      <Badge label={typeLabel(evt.type)} variant={cfg.variant} />
+                      <Badge label={typeLabel(evt.tipo)} variant={cfg.variant} />
                     </View>
-                    <Text style={styles.eventTitle}>{evt.title}</Text>
-                    {evt.description && (
-                      <Text style={styles.eventDesc}>{evt.description}</Text>
-                    )}
+                    <Text style={styles.eventTitle}>{evt.titulo}</Text>
+                    {evt.descricao && <Text style={styles.eventDesc}>{evt.descricao}</Text>}
                   </Card>
                 );
               })}

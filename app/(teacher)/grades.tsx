@@ -13,7 +13,6 @@ import { Star, Plus, X, ChevronDown, ClipboardList } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
-import type { ClassSubject, Assessment } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -28,28 +27,48 @@ interface StudentGrade {
   status: string;
 }
 
+interface TurmaDisciplina {
+  id: string;
+  turma_id: string;
+  disciplina_id: string;
+  professor_id: string | null;
+  horas_semanais: number;
+  disciplina?: { nome: string } | null;
+  turma?: { nome: string; ano: number } | null;
+}
+
+interface Avaliacao {
+  id: string;
+  turma_disciplina_id: string;
+  titulo: string;
+  tipo: string;
+  data: string | null;
+  nota_maxima: number;
+  peso: number;
+}
+
 export default function GradesScreen() {
   const { user } = useAuth();
   const theme = useTheme();
-  const [myClasses, setMyClasses] = useState<ClassSubject[]>([]);
-  const [selectedCS, setSelectedCS] = useState<ClassSubject | null>(null);
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null);
+  const [myClasses, setMyClasses] = useState<TurmaDisciplina[]>([]);
+  const [selectedCS, setSelectedCS] = useState<TurmaDisciplina | null>(null);
+  const [assessments, setAssessments] = useState<Avaliacao[]>([]);
+  const [selectedAssessment, setSelectedAssessment] = useState<Avaliacao | null>(null);
   const [grades, setGrades] = useState<StudentGrade[]>([]);
   const [showAddAssessment, setShowAddAssessment] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showAssessmentPicker, setShowAssessmentPicker] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [assessmentForm, setAssessmentForm] = useState({ title: '', type: 'test', max_score: '10', date: '' });
+  const [assessmentForm, setAssessmentForm] = useState({ title: '', type: 'teste', max_score: '10', date: '' });
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (!user?.id) return;
     supabase
-      .from('class_subjects')
-      .select('*, subject:subjects(name), class:classes(name, year)')
-      .eq('teacher_id', user.id)
+      .from('turma_disciplinas')
+      .select('*, disciplina:disciplinas(nome), turma:turmas(nome, ano)')
+      .eq('professor_id', user.id)
       .then(({ data }) => {
         setMyClasses(data ?? []);
         if (data && data.length > 0 && !selectedCS) setSelectedCS(data[0]);
@@ -59,10 +78,10 @@ export default function GradesScreen() {
   const loadAssessments = async () => {
     if (!selectedCS) return;
     const { data } = await supabase
-      .from('assessments')
+      .from('avaliacoes')
       .select('*')
-      .eq('class_subject_id', selectedCS.id)
-      .order('date', { ascending: false });
+      .eq('turma_disciplina_id', selectedCS.id)
+      .order('data', { ascending: false });
     setAssessments(data ?? []);
     if (data && data.length > 0 && !selectedAssessment) setSelectedAssessment(data[0]);
   };
@@ -71,27 +90,29 @@ export default function GradesScreen() {
 
   const loadGrades = async () => {
     if (!selectedAssessment || !selectedCS) return;
+    // Busca matrículas
     const { data: enrollments } = await supabase
-      .from('student_enrollments')
-      .select('*, profile:profiles!student_id(full_name)')
-      .eq('class_id', selectedCS.class_id)
-      .eq('status', 'active');
+      .from('matriculas')
+      .select('*, perfil:perfis!aluno_id(nome_completo)')
+      .eq('turma_id', selectedCS.turma_id)
+      .eq('situacao', 'ativo');
 
+    // Busca notas existentes
     const { data: existingGrades } = await supabase
-      .from('grades')
+      .from('notas')
       .select('*')
-      .eq('assessment_id', selectedAssessment.id);
+      .eq('avaliacao_id', selectedAssessment.id);
 
     const gradeMap: Record<string, any> = {};
-    (existingGrades ?? []).forEach(g => { gradeMap[g.student_id] = g; });
+    (existingGrades ?? []).forEach(g => { gradeMap[g.aluno_id] = g; });
 
     setGrades(
-      (enrollments ?? []).map(e => ({
-        student_id: e.student_id,
-        full_name: (e as any).profile?.full_name ?? 'Aluno',
-        grade_id: gradeMap[e.student_id]?.id ?? null,
-        score: gradeMap[e.student_id]?.score ?? null,
-        status: gradeMap[e.student_id]?.status ?? 'pending',
+      (enrollments ?? []).map((e: any) => ({
+        student_id: e.aluno_id,
+        full_name: e.perfil?.nome_completo ?? 'Aluno',
+        grade_id: gradeMap[e.aluno_id]?.id ?? null,
+        score: gradeMap[e.aluno_id]?.nota ?? null,
+        status: gradeMap[e.aluno_id]?.situacao ?? 'pendente',
       }))
     );
   };
@@ -101,7 +122,7 @@ export default function GradesScreen() {
   const updateScore = (studentId: string, value: string) => {
     const score = value === '' ? null : parseFloat(value);
     setGrades(prev => prev.map(g =>
-      g.student_id === studentId ? { ...g, score, status: score !== null ? 'graded' : 'pending' } : g
+      g.student_id === studentId ? { ...g, score, status: score !== null ? 'lancada' : 'pendente' } : g
     ));
   };
 
@@ -110,14 +131,15 @@ export default function GradesScreen() {
     setSaving(true);
     for (const g of grades) {
       if (g.score !== null) {
-        await supabase.from('grades').upsert({
-          assessment_id: selectedAssessment.id,
-          student_id: g.student_id,
-          score: g.score,
-          status: 'graded',
-          graded_by: user?.id,
-          graded_at: new Date().toISOString(),
-        }, { onConflict: 'assessment_id,student_id' });
+        // Escreve na tabela real `notas` com colunas PT
+        await supabase.from('notas').upsert({
+          avaliacao_id: selectedAssessment.id,
+          aluno_id: g.student_id,
+          nota: g.score,
+          situacao: 'lancada',
+          lancado_por: user?.id,
+          lancado_em: new Date().toISOString(),
+        }, { onConflict: 'avaliacao_id,aluno_id' });
       }
     }
     setSaving(false);
@@ -127,16 +149,17 @@ export default function GradesScreen() {
   const handleCreateAssessment = async () => {
     setFormError('');
     if (!assessmentForm.title || !selectedCS) { setFormError('Título obrigatório.'); return; }
-    const { error } = await supabase.from('assessments').insert({
-      class_subject_id: selectedCS.id,
-      title: assessmentForm.title,
-      type: assessmentForm.type,
-      max_score: parseFloat(assessmentForm.max_score || '10'),
-      date: assessmentForm.date || null,
+    // Escreve na tabela real `avaliacoes` com colunas PT
+    const { error } = await supabase.from('avaliacoes').insert({
+      turma_disciplina_id: selectedCS.id,
+      titulo: assessmentForm.title,
+      tipo: assessmentForm.type,
+      nota_maxima: parseFloat(assessmentForm.max_score || '10'),
+      data: assessmentForm.date || null,
     });
     if (error) { setFormError(error.message); return; }
     setShowAddAssessment(false);
-    setAssessmentForm({ title: '', type: 'test', max_score: '10', date: '' });
+    setAssessmentForm({ title: '', type: 'teste', max_score: '10', date: '' });
     await loadAssessments();
   };
 
@@ -150,8 +173,8 @@ export default function GradesScreen() {
 
   const onRefresh = async () => { setRefreshing(true); await loadGrades(); setRefreshing(false); };
 
-  const typeOptions = ['exam','test','assignment','project','quiz','recovery'];
-  const typeLabel = (t: string) => ({ exam: 'Prova', test: 'Teste', assignment: 'Trabalho', project: 'Projeto', quiz: 'Quiz', recovery: 'Recuperação' }[t] ?? t);
+  const typeOptions = ['prova', 'teste', 'trabalho', 'projeto', 'quiz', 'recuperacao'];
+  const typeLabel = (t: string) => ({ prova: 'Prova', teste: 'Teste', trabalho: 'Trabalho', projeto: 'Projeto', quiz: 'Quiz', recuperacao: 'Recuperação' }[t] ?? t);
 
   return (
     <View style={[styles.flex, { backgroundColor: theme.bg }]}>
@@ -163,7 +186,9 @@ export default function GradesScreen() {
         <TouchableOpacity style={styles.picker} onPress={() => setShowClassPicker(v => !v)}>
           <ClipboardList size={16} color={theme.primary} />
           <Text style={styles.pickerText} numberOfLines={1}>
-            {selectedCS ? `${(selectedCS as any).subject?.name} – ${(selectedCS as any).class?.name}` : 'Selecionar turma'}
+            {selectedCS
+              ? `${(selectedCS.disciplina as any)?.nome} – ${(selectedCS.turma as any)?.nome}`
+              : 'Selecionar turma'}
           </Text>
           <ChevronDown size={16} color={theme.textMuted} />
         </TouchableOpacity>
@@ -172,7 +197,7 @@ export default function GradesScreen() {
             {myClasses.map(cs => (
               <TouchableOpacity key={cs.id} style={styles.dropdownItem}
                 onPress={() => { setSelectedCS(cs); setSelectedAssessment(null); setShowClassPicker(false); }}>
-                <Text style={styles.dropdownText}>{(cs as any).subject?.name} – {(cs as any).class?.name}</Text>
+                <Text style={styles.dropdownText}>{(cs.disciplina as any)?.nome} – {(cs.turma as any)?.nome}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -182,7 +207,9 @@ export default function GradesScreen() {
           <TouchableOpacity style={[styles.picker, { flex: 1 }]} onPress={() => setShowAssessmentPicker(v => !v)}>
             <Star size={16} color={theme.warning} />
             <Text style={styles.pickerText} numberOfLines={1}>
-              {selectedAssessment ? `${selectedAssessment.title} (/${selectedAssessment.max_score})` : 'Selecionar avaliação'}
+              {selectedAssessment
+                ? `${selectedAssessment.titulo} (/${selectedAssessment.nota_maxima})`
+                : 'Selecionar avaliação'}
             </Text>
             <ChevronDown size={16} color={theme.textMuted} />
           </TouchableOpacity>
@@ -198,8 +225,8 @@ export default function GradesScreen() {
             {assessments.map(a => (
               <TouchableOpacity key={a.id} style={styles.dropdownItem}
                 onPress={() => { setSelectedAssessment(a); setShowAssessmentPicker(false); }}>
-                <Text style={styles.dropdownText}>{a.title}</Text>
-                <Badge label={typeLabel(a.type)} variant="neutral" />
+                <Text style={styles.dropdownText}>{a.titulo}</Text>
+                <Badge label={typeLabel(a.tipo)} variant="neutral" />
               </TouchableOpacity>
             ))}
           </View>
@@ -230,14 +257,14 @@ export default function GradesScreen() {
                 <Text style={styles.gradeName} numberOfLines={1}>{g.full_name}</Text>
                 <View style={styles.scoreWrap}>
                   <TextInput
-                    style={[styles.scoreInput, { color: scoreColor(g.score, selectedAssessment?.max_score ?? 10) }]}
+                    style={[styles.scoreInput, { color: scoreColor(g.score, selectedAssessment?.nota_maxima ?? 10) }]}
                     value={g.score !== null ? String(g.score) : ''}
                     onChangeText={v => updateScore(g.student_id, v)}
                     keyboardType="decimal-pad"
                     placeholder="–"
                     placeholderTextColor="#D1D5DB"
                   />
-                  <Text style={styles.maxScore}>/{selectedAssessment?.max_score ?? 10}</Text>
+                  <Text style={styles.maxScore}>/{selectedAssessment?.nota_maxima ?? 10}</Text>
                 </View>
               </View>
             </Card>

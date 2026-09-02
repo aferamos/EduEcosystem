@@ -1,16 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Calendar } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
-import type { Event, Assessment } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -37,46 +30,56 @@ export default function CalendarScreen() {
 
     const today = new Date().toISOString().split('T')[0];
 
-    const { data: enrollments } = await supabase
-      .from('student_enrollments')
-      .select('class_id')
-      .eq('student_id', user.id)
-      .eq('status', 'active');
+    // Busca matrículas
+    const { data: matriculas } = await supabase
+      .from('matriculas')
+      .select('turma_id')
+      .eq('aluno_id', user.id)
+      .eq('situacao', 'ativo');
 
-    const classIds = (enrollments ?? []).map(e => e.class_id);
+    const turmaIds = (matriculas ?? []).map((m: any) => m.turma_id);
+
+    // Busca turma_disciplinas
+    let tdIds: string[] = [];
+    if (turmaIds.length > 0) {
+      const { data: tds } = await supabase
+        .from('turma_disciplinas')
+        .select('id')
+        .in('turma_id', turmaIds);
+      tdIds = (tds ?? []).map((td: any) => td.id);
+    }
 
     const [eventsRes, assessmentsRes] = await Promise.all([
-      supabase.from('events')
+      // Tabela real `eventos` com colunas PT
+      supabase.from('eventos')
         .select('*')
-        .eq('institution_id', institutionId)
-        .gte('event_date', today)
-        .order('event_date')
+        .eq('instituicao_id', institutionId)
+        .gte('data_evento', today)
+        .order('data_evento')
         .limit(30),
-      classIds.length > 0
-        ? supabase.from('assessments')
-            .select('*, class_subject:class_subjects(*, subject:subjects(name))')
-            .in('class_subject_id',
-              await supabase.from('class_subjects').select('id').in('class_id', classIds).then(r => (r.data ?? []).map(c => c.id))
-            )
-            .gte('date', today)
-            .order('date')
+      tdIds.length > 0
+        ? supabase.from('avaliacoes')
+            .select('*, turma_disciplina:turma_disciplinas(*, disciplina:disciplinas(nome))')
+            .in('turma_disciplina_id', tdIds)
+            .gte('data', today)
+            .order('data')
             .limit(30)
         : Promise.resolve({ data: [] }),
     ]);
 
     const calItems: CalendarItem[] = [
-      ...(eventsRes.data ?? []).map((e: Event) => ({
-        date: e.event_date,
+      ...(eventsRes.data ?? []).map((e: any) => ({
+        date: e.data_evento,
         type: 'event' as const,
-        title: e.title,
-        eventType: e.type,
+        title: e.titulo,
+        eventType: e.tipo,
       })),
-      ...(assessmentsRes.data ?? []).filter((a: any) => a.date).map((a: any) => ({
-        date: a.date,
+      ...(assessmentsRes.data ?? []).filter((a: any) => a.data).map((a: any) => ({
+        date: a.data,
         type: 'assessment' as const,
-        title: a.title,
-        subjectName: a.class_subject?.subject?.name,
-        assessmentType: a.type,
+        title: a.titulo,
+        subjectName: a.turma_disciplina?.disciplina?.nome,
+        assessmentType: a.tipo,
       })),
     ].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -98,22 +101,20 @@ export default function CalendarScreen() {
   });
 
   const typeConfig: Record<string, { variant: 'danger' | 'warning' | 'info' | 'success' | 'neutral'; label: string }> = {
-    holiday: { variant: 'success', label: 'Feriado' },
-    exam: { variant: 'danger', label: 'Prova' },
-    meeting: { variant: 'warning', label: 'Reunião' },
-    activity: { variant: 'info', label: 'Atividade' },
-    general: { variant: 'neutral', label: 'Evento' },
-    test: { variant: 'danger', label: 'Teste' },
-    assignment: { variant: 'warning', label: 'Trabalho' },
-    project: { variant: 'warning', label: 'Projeto' },
+    feriado: { variant: 'success', label: 'Feriado' },
+    avaliacao: { variant: 'danger', label: 'Avaliação' },
+    reuniao: { variant: 'warning', label: 'Reunião' },
+    atividade: { variant: 'info', label: 'Atividade' },
+    geral: { variant: 'neutral', label: 'Evento' },
+    prova: { variant: 'danger', label: 'Prova' },
+    teste: { variant: 'danger', label: 'Teste' },
+    trabalho: { variant: 'warning', label: 'Trabalho' },
+    projeto: { variant: 'warning', label: 'Projeto' },
     quiz: { variant: 'info', label: 'Quiz' },
-    recovery: { variant: 'neutral', label: 'Recuperação' },
+    recuperacao: { variant: 'neutral', label: 'Recuperação' },
   };
 
-  const isToday = (date: string) => {
-    return date === new Date().toISOString().split('T')[0];
-  };
-
+  const isToday = (date: string) => date === new Date().toISOString().split('T')[0];
   const isTomorrow = (date: string) => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -158,18 +159,19 @@ export default function CalendarScreen() {
               </View>
               {dayItems.map((item, idx) => {
                 const cfg = item.type === 'assessment'
-                  ? (typeConfig[item.assessmentType ?? ''] ?? typeConfig.general)
-                  : (typeConfig[item.eventType ?? ''] ?? typeConfig.general);
+                  ? (typeConfig[item.assessmentType ?? ''] ?? typeConfig.geral)
+                  : (typeConfig[item.eventType ?? ''] ?? typeConfig.geral);
                 return (
                   <Card key={idx} style={[
                     styles.itemCard,
-                    item.type === 'assessment' && { borderLeftWidth: 4, borderLeftColor: cfg.variant === 'danger' ? theme.danger : cfg.variant === 'warning' ? theme.warning : theme.secondary },
+                    item.type === 'assessment' && {
+                      borderLeftWidth: 4,
+                      borderLeftColor: cfg.variant === 'danger' ? theme.danger : cfg.variant === 'warning' ? theme.warning : theme.secondary,
+                    },
                   ]} padding={14}>
                     <View style={styles.itemHeader}>
                       <Badge label={cfg.label} variant={cfg.variant} />
-                      {item.subjectName && (
-                        <Text style={styles.itemSubject}>{item.subjectName}</Text>
-                      )}
+                      {item.subjectName && <Text style={styles.itemSubject}>{item.subjectName}</Text>}
                     </View>
                     <Text style={styles.itemTitle}>{item.title}</Text>
                   </Card>

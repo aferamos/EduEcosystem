@@ -55,22 +55,19 @@ export async function signUpWithInstitution(
 
   const userId = data.user.id;
 
-  // Create profile and settings (trigger was removed; create manually)
+  // Cria perfil
   const { error: profileErr } = await supabase
-    .from('profiles')
-    .upsert({ id: userId, full_name: fullName }, { onConflict: 'id' });
+    .from('perfis')
+    .upsert({ id: userId, nome_completo: fullName }, { onConflict: 'id' });
   if (profileErr) return { error: profileErr.message };
 
+  // Cria configurações padrão
   const { error: settingsErr } = await supabase
-    .from('user_settings')
-    .upsert({ user_id: userId }, { onConflict: 'user_id' });
-  if (settingsErr) console.warn('user_settings insert failed', settingsErr.message);
-
-  const { error: mfaErr } = await supabase
     .from('configuracoes_usuario')
     .upsert({ usuario_id: userId }, { onConflict: 'usuario_id' });
-  if (mfaErr) console.warn('configuracoes_usuario insert failed', mfaErr.message);
+  if (settingsErr) console.warn('configuracoes_usuario insert failed', settingsErr.message);
 
+  // Cria instituição
   const slug =
     institutionName
       .toLowerCase()
@@ -82,15 +79,16 @@ export async function signUpWithInstitution(
     Date.now();
 
   const { data: inst, error: instErr } = await supabase
-    .from('institutions')
-    .insert({ name: institutionName, slug })
+    .from('instituicoes')
+    .insert({ nome: institutionName, slug })
     .select()
     .single();
   if (instErr || !inst) return { error: instErr?.message ?? 'Falha ao criar instituição.' };
 
+  // Atribui papel de admin
   const { error: roleErr } = await supabase
-    .from('user_roles')
-    .insert({ user_id: userId, institution_id: inst.id, role: 'admin' });
+    .from('perfis_usuario')
+    .insert({ usuario_id: userId, instituicao_id: inst.id, perfil: 'admin' });
   if (roleErr) return { error: roleErr.message };
 
   return { error: null };
@@ -98,32 +96,73 @@ export async function signUpWithInstitution(
 
 export async function getUserRoles(userId: string) {
   const { data, error } = await supabase
-    .from('user_roles')
-    .select('*, institution:institutions(*)')
-    .eq('user_id', userId)
-    .eq('is_active', true);
+    .from('perfis_usuario')
+    .select('*, instituicao:instituicoes(*)')
+    .eq('usuario_id', userId)
+    .eq('ativo', true);
   if (error) throw new Error(error.message);
-  return data || [];
+  // Normaliza para o formato esperado pelo restante do app
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    user_id: r.usuario_id,
+    institution_id: r.instituicao_id,
+    role: r.perfil,
+    is_active: r.ativo,
+    created_at: r.criado_em,
+    institution: r.instituicao
+      ? {
+          id: r.instituicao.id,
+          name: r.instituicao.nome,
+          slug: r.instituicao.slug,
+          logo_url: r.instituicao.logo_url,
+          primary_color: r.instituicao.cor_primaria,
+          secondary_color: r.instituicao.cor_secundaria,
+          address: r.instituicao.endereco,
+          city: r.instituicao.cidade,
+          phone: r.instituicao.telefone,
+          email: r.instituicao.email,
+          active: r.instituicao.ativo,
+          created_at: r.instituicao.criado_em,
+          updated_at: r.instituicao.atualizado_em,
+        }
+      : null,
+  }));
 }
 
 export async function getUserProfile(userId: string) {
   const { data, error } = await supabase
-    .from('profiles')
+    .from('perfis')
     .select('*')
     .eq('id', userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data;
+  if (!data) return null;
+  return {
+    id: data.id,
+    full_name: data.nome_completo ?? '',
+    avatar_url: data.avatar_url,
+    phone: data.telefone,
+    birth_date: data.data_nascimento,
+    created_at: data.criado_em,
+    updated_at: data.atualizado_em,
+  };
 }
 
 export async function getUserActiveContext(userId: string) {
   const { data, error } = await supabase
-    .from('user_active_context')
+    .from('contexto_ativo')
     .select('*')
-    .eq('user_id', userId)
+    .eq('usuario_id', userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data;
+  if (!data) return null;
+  return {
+    user_id: data.usuario_id,
+    institution_id: data.instituicao_id,
+    role: data.perfil,
+    profile_id: data.perfil_id,
+    updated_at: data.atualizado_em,
+  };
 }
 
 export async function setUserActiveContext(
@@ -132,65 +171,116 @@ export async function setUserActiveContext(
   role: UserRole | null,
   profileId: string | null
 ) {
-  const { error } = await supabase.from('user_active_context').upsert(
+  // perfil_id referencia perfis.id — só passa se o perfil existe no banco
+  // para evitar violação de FK, verificamos se o perfil existe
+  let safePerfil_id: string | null = null;
+  if (profileId) {
+    const { data: perfil } = await supabase
+      .from('perfis')
+      .select('id')
+      .eq('id', profileId)
+      .maybeSingle();
+    safePerfil_id = perfil?.id ?? null;
+  }
+
+  const { error } = await supabase.from('contexto_ativo').upsert(
     {
-      user_id: userId,
-      institution_id: institutionId,
-      role: role,
-      profile_id: profileId,
-      updated_at: new Date().toISOString(),
+      usuario_id: userId,
+      instituicao_id: institutionId,
+      perfil: role,
+      perfil_id: safePerfil_id,
+      atualizado_em: new Date().toISOString(),
     },
-    { onConflict: 'user_id' }
+    { onConflict: 'usuario_id' }
   );
   if (error) throw new Error(error.message);
 }
 
 export async function getUserSettings(userId: string) {
   const { data, error } = await supabase
-    .from('user_settings')
+    .from('configuracoes_usuario')
     .select('*')
-    .eq('user_id', userId)
+    .eq('usuario_id', userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data;
+  if (!data) return null;
+  return {
+    id: data.id,
+    user_id: data.usuario_id,
+    email_notifications: data.notif_email,
+    push_notifications: data.notif_push,
+    sms_notifications: data.notif_sms,
+    language: data.idioma,
+    theme: data.tema,
+    timezone: data.fuso_horario,
+    biometric_login: data.login_biometrico,
+    updated_at: data.atualizado_em,
+  };
 }
 
 export async function updateUserSettings(userId: string, settings: Partial<Record<string, unknown>>) {
-  const { error } = await supabase.from('user_settings').update(settings).eq('user_id', userId);
+  // Traduz chaves EN → PT se necessário
+  const ptSettings: Record<string, unknown> = {};
+  const keyMap: Record<string, string> = {
+    email_notifications: 'notif_email',
+    push_notifications: 'notif_push',
+    sms_notifications: 'notif_sms',
+    language: 'idioma',
+    theme: 'tema',
+    timezone: 'fuso_horario',
+    biometric_login: 'login_biometrico',
+  };
+  for (const [k, v] of Object.entries(settings)) {
+    ptSettings[keyMap[k] ?? k] = v;
+  }
+  const { error } = await supabase
+    .from('configuracoes_usuario')
+    .update(ptSettings)
+    .eq('usuario_id', userId);
   if (error) throw new Error(error.message);
 }
 
 export async function registerSession(userId: string) {
   const device = getDeviceInfo();
-  const { error } = await supabase.from('user_sessions').insert({
-    user_id: userId,
-    device_name: device.name,
-    device_type: device.type,
-    os: device.os,
+  const { error } = await supabase.from('sessoes_usuario').insert({
+    usuario_id: userId,
+    nome_dispositivo: device.name,
+    tipo_dispositivo: device.type,
+    sistema: device.os,
   });
   if (error) console.warn('session register failed', error.message);
 }
 
 export async function getUserSessions(userId: string) {
   const { data, error } = await supabase
-    .from('user_sessions')
+    .from('sessoes_usuario')
     .select('*')
-    .eq('user_id', userId)
-    .order('last_active_at', { ascending: false });
+    .eq('usuario_id', userId)
+    .order('ultimo_acesso', { ascending: false });
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data ?? []).map((s: any) => ({
+    id: s.id,
+    user_id: s.usuario_id,
+    device_name: s.nome_dispositivo,
+    device_type: s.tipo_dispositivo,
+    os: s.sistema,
+    ip_address: s.ip,
+    last_active_at: s.ultimo_acesso,
+    created_at: s.criado_em,
+    expires_at: s.expira_em,
+  }));
 }
 
 export async function revokeSession(sessionId: string) {
-  const { error } = await supabase.from('user_sessions').delete().eq('id', sessionId);
+  const { error } = await supabase.from('sessoes_usuario').delete().eq('id', sessionId);
   if (error) throw new Error(error.message);
 }
 
 export async function revokeAllOtherSessions(userId: string, currentSessionId: string) {
   const { error } = await supabase
-    .from('user_sessions')
+    .from('sessoes_usuario')
     .delete()
-    .eq('user_id', userId)
+    .eq('usuario_id', userId)
     .neq('id', currentSessionId);
   if (error) throw new Error(error.message);
 }

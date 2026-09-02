@@ -1,20 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  BookOpen,
-  CalendarCheck,
-  Bell,
-  TrendingUp,
-  Calendar,
-  AlertTriangle,
+  BookOpen, CalendarCheck, Bell, TrendingUp, Calendar, AlertTriangle,
 } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
@@ -43,43 +33,49 @@ export default function StudentDashboard() {
     const today = new Date().toISOString().split('T')[0];
 
     const [notifRes, assessRes, commsRes, eventsRes] = await Promise.all([
-      supabase.from('notifications')
+      // Tabela real `notificacoes`
+      supabase.from('notificacoes')
         .select('id', { count: 'exact', head: true })
-        .eq('recipient_id', user.id)
-        .eq('read', false),
-      supabase.from('assessments')
+        .eq('destinatario_id', user.id)
+        .eq('lida', false),
+      // Tabela real `avaliacoes`
+      supabase.from('avaliacoes')
         .select('id', { count: 'exact', head: true })
-        .gte('date', today),
-      supabase.from('communications')
+        .gte('data', today),
+      // Tabela real `comunicados`
+      supabase.from('comunicados')
         .select('*')
-        .eq('institution_id', institutionId)
-        .order('published_at', { ascending: false })
+        .eq('instituicao_id', institutionId)
+        .order('publicado_em', { ascending: false })
         .limit(3),
-      supabase.from('events')
+      // Tabela real `eventos`
+      supabase.from('eventos')
         .select('*')
-        .eq('institution_id', institutionId)
-        .gte('event_date', today)
-        .order('event_date')
+        .eq('instituicao_id', institutionId)
+        .gte('data_evento', today)
+        .order('data_evento')
         .limit(3),
     ]);
 
-    const { data: gradeData } = await supabase
-      .from('grades')
-      .select('score')
-      .eq('student_id', user.id)
-      .eq('status', 'graded');
+    // Notas via tabela real `notas`
+    const { data: notasData } = await supabase
+      .from('notas')
+      .select('nota')
+      .eq('aluno_id', user.id)
+      .eq('situacao', 'lancada');
 
-    const { data: attendData } = await supabase
-      .from('attendance')
-      .select('status')
-      .eq('student_id', user.id);
+    // Frequência via tabela real `frequencias`
+    const { data: freqData } = await supabase
+      .from('frequencias')
+      .select('situacao')
+      .eq('aluno_id', user.id);
 
-    const grades = (gradeData ?? []).map(g => g.score).filter(s => s !== null) as number[];
-    const gradeAvg = grades.length > 0 ? grades.reduce((a, b) => a + b, 0) / grades.length : null;
+    const notas = (notasData ?? []).map((n: any) => n.nota).filter((s: any) => s !== null) as number[];
+    const gradeAvg = notas.length > 0 ? notas.reduce((a, b) => a + b, 0) / notas.length : null;
 
-    const attAll = attendData?.length ?? 0;
-    const attPresent = (attendData ?? []).filter(a => a.status === 'present' || a.status === 'late').length;
-    const attendancePct = attAll > 0 ? Math.round((attPresent / attAll) * 100) : null;
+    const freqAll = freqData?.length ?? 0;
+    const freqPresent = (freqData ?? []).filter((a: any) => a.situacao === 'presente' || a.situacao === 'atraso').length;
+    const attendancePct = freqAll > 0 ? Math.round((freqPresent / freqAll) * 100) : null;
 
     setStats({
       gradeAvg: gradeAvg !== null ? parseFloat(gradeAvg.toFixed(1)) : null,
@@ -87,8 +83,21 @@ export default function StudentDashboard() {
       unreadNotifications: notifRes.count ?? 0,
       upcomingAssessments: assessRes.count ?? 0,
     });
-    setRecentComms(commsRes.data ?? []);
-    setUpcomingEvents(eventsRes.data ?? []);
+
+    setRecentComms((commsRes.data ?? []).map((c: any) => ({
+      id: c.id,
+      title: c.titulo,
+      message: c.mensagem,
+      pinned: c.fixado,
+      published_at: c.publicado_em,
+    })));
+
+    setUpcomingEvents((eventsRes.data ?? []).map((e: any) => ({
+      id: e.id,
+      title: e.titulo,
+      description: e.descricao,
+      event_date: e.data_evento,
+    })));
   };
 
   useEffect(() => { loadData(); }, [user?.id, institutionId]);
@@ -113,12 +122,19 @@ export default function StudentDashboard() {
     return theme.danger;
   };
 
+  const greeting = () => {
+    const hora = new Date().getHours();
+    if (hora < 12) return 'Bom dia';
+    if (hora < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
   return (
     <View style={styles.flex}>
       <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.greeting}>Olá,</Text>
+            <Text style={styles.greeting}>{greeting()},</Text>
             <Text style={styles.name}>{user?.profile.full_name?.split(' ')[0] ?? 'Aluno'}</Text>
           </View>
           <TouchableOpacity onPress={signOut} style={styles.logoutBtn}>
@@ -160,9 +176,7 @@ export default function StudentDashboard() {
             <View style={[styles.summaryIcon, { backgroundColor: theme.warning + '20' }]}>
               <BookOpen size={20} color={theme.warning} />
             </View>
-            <Text style={[styles.summaryValue, { color: theme.warning }]}>
-              {stats.upcomingAssessments}
-            </Text>
+            <Text style={[styles.summaryValue, { color: theme.warning }]}>{stats.upcomingAssessments}</Text>
             <Text style={styles.summaryLabel}>Avaliações</Text>
           </Card>
 
@@ -170,9 +184,7 @@ export default function StudentDashboard() {
             <View style={[styles.summaryIcon, { backgroundColor: theme.primary + '20' }]}>
               <Bell size={20} color={theme.primary} />
             </View>
-            <Text style={[styles.summaryValue, { color: theme.primary }]}>
-              {stats.unreadNotifications}
-            </Text>
+            <Text style={[styles.summaryValue, { color: theme.primary }]}>{stats.unreadNotifications}</Text>
             <Text style={styles.summaryLabel}>Avisos</Text>
           </Card>
         </View>

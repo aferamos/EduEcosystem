@@ -11,11 +11,15 @@ export interface Permission {
 
 export async function getRolePermissions(role: UserRole): Promise<Permission[]> {
   const { data, error } = await supabase
-    .from('role_permissions')
-    .select('resource, action, scope')
-    .eq('role', role);
+    .from('permissoes_perfil')
+    .select('recurso, acao, escopo')
+    .eq('perfil', role);
   if (error) throw new Error(error.message);
-  return (data || []).map((r) => ({ resource: r.resource, action: r.action as Action, scope: r.scope as 'own' | 'institution' | 'all' }));
+  return (data ?? []).map((r) => ({
+    resource: r.recurso,
+    action: r.acao as Action,
+    scope: r.escopo as 'own' | 'institution' | 'all',
+  }));
 }
 
 export function hasPermission(

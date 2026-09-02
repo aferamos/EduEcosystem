@@ -13,7 +13,6 @@ import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Course, Class, Subject } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -22,27 +21,34 @@ import EmptyState from '@/components/ui/EmptyState';
 
 type Tab = 'courses' | 'classes' | 'subjects';
 
+// Tipos locais alinhados com colunas PT
+interface Curso { id: string; nome: string; nivel: string; duracao_anos: number; ativo: boolean; }
+interface Turma { id: string; nome: string; ano: number; turno: string | null; ativo: boolean; curso?: { nome: string } | null; }
+interface Disciplina { id: string; nome: string; codigo: string | null; carga_horaria: number | null; ativo: boolean; }
+
 export default function AcademicScreen() {
   const { user } = useAuth();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const TAB_BAR_HEIGHT = 56 + insets.bottom;
   const [tab, setTab] = useState<Tab>('courses');
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [courses, setCourses] = useState<Curso[]>([]);
+  const [classes, setClasses] = useState<Turma[]>([]);
+  const [subjects, setSubjects] = useState<Disciplina[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const institutionId = user?.currentInstitution?.id;  const loadAll = async () => {
+  const institutionId = user?.currentInstitution?.id;
+
+  const loadAll = async () => {
     if (!institutionId) return;
     const [c, cl, s] = await Promise.all([
-      supabase.from('courses').select('*').eq('institution_id', institutionId).eq('active', true).order('name'),
-      supabase.from('classes').select('*, course:courses(name)').eq('institution_id', institutionId).eq('active', true).order('name'),
-      supabase.from('subjects').select('*').eq('institution_id', institutionId).eq('active', true).order('name'),
+      supabase.from('cursos').select('*').eq('instituicao_id', institutionId).eq('ativo', true).order('nome'),
+      supabase.from('turmas').select('*, curso:cursos(nome)').eq('instituicao_id', institutionId).eq('ativo', true).order('nome'),
+      supabase.from('disciplinas').select('*').eq('instituicao_id', institutionId).eq('ativo', true).order('nome'),
     ]);
     setCourses(c.data ?? []);
     setClasses(cl.data ?? []);
@@ -57,37 +63,38 @@ export default function AcademicScreen() {
     setRefreshing(false);
   };
 
-  const openModal = () => {
-    setForm({});
-    setError('');
-    setShowModal(true);
-  };
+  const openModal = () => { setForm({}); setError(''); setShowModal(true); };
 
   const handleSave = async () => {
-    setError('');
-    setSaving(true);
+    setError(''); setSaving(true);
     let err = null;
 
     if (tab === 'courses') {
       if (!form.name) { setError('Nome obrigatório.'); setSaving(false); return; }
-      const { error: e } = await supabase.from('courses').insert({
-        institution_id: institutionId, name: form.name,
-        level: form.level || 'fundamental', duration_years: parseInt(form.duration_years || '1'),
+      const { error: e } = await supabase.from('cursos').insert({
+        instituicao_id: institutionId,
+        nome: form.name,
+        nivel: form.level || 'fundamental',
+        duracao_anos: parseInt(form.duration_years || '1'),
       });
       err = e;
     } else if (tab === 'classes') {
       if (!form.name || !form.year) { setError('Nome e ano são obrigatórios.'); setSaving(false); return; }
-      const { error: e } = await supabase.from('classes').insert({
-        institution_id: institutionId, name: form.name,
-        year: parseInt(form.year), shift: form.shift || 'morning',
-        course_id: form.course_id || null,
+      const { error: e } = await supabase.from('turmas').insert({
+        instituicao_id: institutionId,
+        nome: form.name,
+        ano: parseInt(form.year),
+        turno: form.shift || 'manha',
+        curso_id: form.course_id || null,
       });
       err = e;
     } else {
       if (!form.name) { setError('Nome obrigatório.'); setSaving(false); return; }
-      const { error: e } = await supabase.from('subjects').insert({
-        institution_id: institutionId, name: form.name,
-        code: form.code || null, workload_hours: form.workload_hours ? parseInt(form.workload_hours) : null,
+      const { error: e } = await supabase.from('disciplinas').insert({
+        instituicao_id: institutionId,
+        nome: form.name,
+        codigo: form.code || null,
+        carga_horaria: form.workload_hours ? parseInt(form.workload_hours) : null,
       });
       err = e;
     }
@@ -104,7 +111,7 @@ export default function AcademicScreen() {
     { key: 'subjects', label: 'Disciplinas', icon: <Layers size={16} color={tab === 'subjects' ? '#FFFFFF' : '#6B7280'} /> },
   ];
 
-  const shiftLabel = (s: string) => ({ morning: 'Manhã', afternoon: 'Tarde', evening: 'Noite', full: 'Integral' }[s] ?? s);
+  const shiftLabel = (s: string) => ({ manha: 'Manhã', tarde: 'Tarde', noite: 'Noite', integral: 'Integral' }[s] ?? s);
   const levelLabel = (l: string) => ({ fundamental: 'Fund.', medio: 'Médio', superior: 'Superior', tecnico: 'Técnico' }[l] ?? l);
 
   return (
@@ -142,10 +149,10 @@ export default function AcademicScreen() {
                     <GraduationCap size={20} color={theme.primary} />
                   </View>
                   <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>{c.name}</Text>
+                    <Text style={styles.itemName}>{c.nome}</Text>
                     <View style={styles.itemMeta}>
-                      <Badge label={levelLabel(c.level)} variant="info" />
-                      <Text style={styles.metaText}>{c.duration_years} ano{c.duration_years > 1 ? 's' : ''}</Text>
+                      <Badge label={levelLabel(c.nivel)} variant="info" />
+                      <Text style={styles.metaText}>{c.duracao_anos} ano{c.duracao_anos > 1 ? 's' : ''}</Text>
                     </View>
                   </View>
                 </View>
@@ -163,11 +170,11 @@ export default function AcademicScreen() {
                     <Users size={20} color={theme.secondary} />
                   </View>
                   <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>{cl.name}</Text>
+                    <Text style={styles.itemName}>{cl.nome}</Text>
                     <View style={styles.itemMeta}>
-                      <Badge label={`${cl.year}`} variant="neutral" />
-                      <Badge label={shiftLabel(cl.shift ?? '')} variant="info" />
-                      {(cl as any).course?.name && <Text style={styles.metaText}>{(cl as any).course.name}</Text>}
+                      <Badge label={`${cl.ano}`} variant="neutral" />
+                      <Badge label={shiftLabel(cl.turno ?? '')} variant="info" />
+                      {cl.curso?.nome && <Text style={styles.metaText}>{cl.curso.nome}</Text>}
                     </View>
                   </View>
                 </View>
@@ -185,10 +192,10 @@ export default function AcademicScreen() {
                     <BookOpen size={20} color={theme.success} />
                   </View>
                   <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>{s.name}</Text>
+                    <Text style={styles.itemName}>{s.nome}</Text>
                     <View style={styles.itemMeta}>
-                      {s.code && <Badge label={s.code} variant="neutral" />}
-                      {s.workload_hours && <Text style={styles.metaText}>{s.workload_hours}h</Text>}
+                      {s.codigo && <Badge label={s.codigo} variant="neutral" />}
+                      {s.carga_horaria && <Text style={styles.metaText}>{s.carga_horaria}h</Text>}
                     </View>
                   </View>
                 </View>
@@ -231,7 +238,7 @@ export default function AcademicScreen() {
                   placeholder="2025" keyboardType="numeric" />
                 <Text style={styles.fieldLabel}>Turno</Text>
                 <View style={styles.shiftRow}>
-                  {['morning','afternoon','evening','full'].map(s => (
+                  {['manha', 'tarde', 'noite', 'integral'].map(s => (
                     <TouchableOpacity key={s}
                       onPress={() => setForm(f => ({ ...f, shift: s }))}
                       style={[styles.shiftBtn, form.shift === s && { backgroundColor: theme.primary, borderColor: theme.primary }]}>

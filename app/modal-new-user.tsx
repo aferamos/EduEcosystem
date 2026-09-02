@@ -25,9 +25,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   
 export default function ModalNewUser() {
   const { user } = useAuth();
-  //const theme = useTheme();
-  // Força o TS a aceitar 'background', 'border', 'text', etc.
-  const theme = useTheme() as Record<string, any>;
+  const theme = useTheme();
   
   const [form, setForm] = useState({
     fullName: '',
@@ -58,30 +56,43 @@ export default function ModalNewUser() {
 
     setLoading(true);
 
-    // Chama a Edge Function que usa a service role para criar o usuário
-    // sem alterar a sessão do admin atual.
-    const { data, error: fnError } = await supabase.functions.invoke('create-user', {
-      body: {
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
-        fullName: form.fullName.trim(),
-        role: form.role,
-        institutionId,
-      },
-    });
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          fullName: form.fullName.trim(),
+          role: form.role,
+          institutionId,
+        },
+      });
 
-    setLoading(false);
+      setLoading(false);
 
-    if (fnError || data?.error) {
-      setError(data?.error ?? fnError?.message ?? 'Erro ao criar usuário.');
-      return;
+      // fnError ocorre quando o status HTTP não é 2xx
+      if (fnError) {
+        // Tenta extrair a mensagem do body da resposta
+        const msg = (fnError as any)?.context?.json?.error
+          ?? (fnError as any)?.message
+          ?? 'Erro na edge function.';
+        setError(msg);
+        return;
+      }
+
+      if (data?.error) {
+        setError(data.error);
+        return;
+      }
+
+      router.back();
+    } catch (e: any) {
+      setLoading(false);
+      setError(e?.message ?? 'Erro inesperado.');
     }
-
-    router.back();
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>Novo Usuário</Text>
         <TouchableOpacity onPress={() => router.back()}>

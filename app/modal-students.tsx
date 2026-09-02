@@ -1,11 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { X, GraduationCap } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -13,16 +8,22 @@ import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { UserRoleRecord } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import EmptyState from '@/components/ui/EmptyState';
 import RoleBadge from '@/components/RoleBadge';
+import type { UserRole } from '@/lib/types';
+
+interface StudentItem {
+  id: string;
+  role: UserRole;
+  profile: { full_name: string; avatar_url: string | null } | null;
+}
 
 export default function ModalStudents() {
   const { user } = useAuth();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [students, setStudents] = useState<UserRoleRecord[]>([]);
+  const [students, setStudents] = useState<StudentItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const institutionId = user?.currentInstitution?.id;
@@ -30,41 +31,23 @@ export default function ModalStudents() {
   const load = async () => {
     if (!institutionId) return;
 
-    const { data: rolesData, error } = await supabase
+    const { data, error } = await supabase
       .from('perfis_usuario')
-      .select('*, perfil_join:perfis!usuario_id(id, nome_completo, avatar_url, telefone, data_nascimento, criado_em, atualizado_em)')
+      .select('*, perfil_join:perfis!usuario_id(id, nome_completo, avatar_url)')
       .eq('instituicao_id', institutionId)
       .eq('perfil', 'aluno')
       .eq('ativo', true)
       .order('criado_em', { ascending: false });
 
-    if (error) {
-      // Fallback via views com join manual
-      const { data: viewData } = await supabase
-        .from('user_roles')
-        .select('id, user_id, institution_id, role, is_active, created_at')
-        .eq('institution_id', institutionId)
-        .eq('role', 'aluno')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+    if (error) { console.warn('modal-students error', error.message); return; }
 
-      if (!viewData?.length) { setStudents([]); return; }
-      const userIds = [...new Set(viewData.map(r => r.user_id))];
-      const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds);
-      const profileMap = new Map((profilesData ?? []).map(p => [p.id, p]));
-      setStudents(viewData.map(r => ({ ...r, profile: profileMap.get(r.user_id) ?? null })) as any);
-      return;
-    }
-
-    setStudents((rolesData ?? []).map((r: any) => ({
+    setStudents((data ?? []).map((r: any) => ({
       id: r.id,
-      user_id: r.usuario_id,
-      institution_id: r.instituicao_id,
-      role: r.perfil,
-      is_active: r.ativo,
-      created_at: r.criado_em,
-      profile: r.perfil_join ? { id: r.perfil_join.id, full_name: r.perfil_join.nome_completo, avatar_url: r.perfil_join.avatar_url, phone: r.perfil_join.telefone, birth_date: r.perfil_join.data_nascimento, created_at: r.perfil_join.criado_em, updated_at: r.perfil_join.atualizado_em } : null,
-    })) as any);
+      role: r.perfil as UserRole,
+      profile: r.perfil_join
+        ? { full_name: r.perfil_join.nome_completo, avatar_url: r.perfil_join.avatar_url }
+        : null,
+    })));
   };
 
   useEffect(() => { load(); }, [institutionId]);
@@ -81,7 +64,9 @@ export default function ModalStudents() {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.headerTitle}>Alunos</Text>
-            <Text style={styles.headerSub}>{students.length} aluno{students.length !== 1 ? 's' : ''} ativo{students.length !== 1 ? 's' : ''}</Text>
+            <Text style={styles.headerSub}>
+              {students.length} aluno{students.length !== 1 ? 's' : ''} ativo{students.length !== 1 ? 's' : ''}
+            </Text>
           </View>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
             <X size={22} color="#FFFFFF" />
@@ -101,26 +86,23 @@ export default function ModalStudents() {
             description="Adicione alunos à instituição."
           />
         ) : (
-          students.map(ur => {
-            const profile = (ur as any).profile;
-            return (
-              <Card key={ur.id} style={styles.userCard} padding={14}>
-                <View style={styles.userRow}>
-                  <View style={[styles.avatar, { backgroundColor: theme.primary + '20' }]}>
-                    <Text style={[styles.avatarText, { color: theme.primary }]}>
-                      {profile?.full_name?.[0]?.toUpperCase() ?? '?'}
-                    </Text>
-                  </View>
-                  <View style={styles.userInfo}>
-                    <Text style={[styles.userName, { color: theme.text }]}>
-                      {profile?.full_name ?? 'Sem nome'}
-                    </Text>
-                    <RoleBadge role={ur.role} />
-                  </View>
+          students.map(ur => (
+            <Card key={ur.id} style={styles.userCard} padding={14}>
+              <View style={styles.userRow}>
+                <View style={[styles.avatar, { backgroundColor: theme.primary + '20' }]}>
+                  <Text style={[styles.avatarText, { color: theme.primary }]}>
+                    {ur.profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+                  </Text>
                 </View>
-              </Card>
-            );
-          })
+                <View style={styles.userInfo}>
+                  <Text style={[styles.userName, { color: theme.text }]}>
+                    {ur.profile?.full_name ?? 'Sem nome'}
+                  </Text>
+                  <RoleBadge role={ur.role} />
+                </View>
+              </View>
+            </Card>
+          ))
         )}
       </ScrollView>
     </View>
@@ -133,11 +115,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerTitle: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
-  closeBtn: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 8,
-    borderRadius: 20,
-  },
+  closeBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 20 },
   list: { padding: 16, gap: 10 },
   userCard: {},
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

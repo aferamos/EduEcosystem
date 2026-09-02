@@ -1,11 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { CalendarCheck, AlertTriangle } from 'lucide-react-native';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
@@ -34,35 +28,38 @@ export default function StudentAttendance() {
   const loadData = async () => {
     if (!user?.id) return;
 
-    const { data: attData } = await supabase
-      .from('attendance')
-      .select('*, class_subject:class_subjects(*, subject:subjects(name))')
-      .eq('student_id', user.id)
-      .order('date', { ascending: false });
+    // Busca na tabela real `frequencias` com colunas PT + join para nome da disciplina
+    const { data: freqData } = await supabase
+      .from('frequencias')
+      .select('*, turma_disciplina:turma_disciplinas(*, disciplina:disciplinas(nome))')
+      .eq('aluno_id', user.id)
+      .order('data', { ascending: false });
 
     const grouped: Record<string, { subjectName: string; records: any[] }> = {};
-    (attData ?? []).forEach(a => {
-      const csId = a.class_subject_id;
-      if (!grouped[csId]) {
-        grouped[csId] = {
-          subjectName: (a.class_subject as any)?.subject?.name ?? 'Disciplina',
+    (freqData ?? []).forEach((a: any) => {
+      const tdId = a.turma_disciplina_id;
+      if (!grouped[tdId]) {
+        grouped[tdId] = {
+          subjectName: a.turma_disciplina?.disciplina?.nome ?? 'Disciplina',
           records: [],
         };
       }
-      grouped[csId].records.push(a);
+      grouped[tdId].records.push(a);
     });
 
     const result: SubjectAttendance[] = Object.values(grouped).map(({ subjectName, records }) => {
-      const present = records.filter(r => r.status === 'present').length;
-      const absent = records.filter(r => r.status === 'absent').length;
-      const justified = records.filter(r => r.status === 'justified').length;
-      const late = records.filter(r => r.status === 'late').length;
+      const present = records.filter(r => r.situacao === 'presente').length;
+      const absent = records.filter(r => r.situacao === 'falta').length;
+      const justified = records.filter(r => r.situacao === 'justificado').length;
+      const late = records.filter(r => r.situacao === 'atraso').length;
       const total = records.length;
       const percentage = total > 0 ? Math.round(((present + late) / total) * 100) : 100;
       return { subjectName, total, present, absent, justified, late, percentage };
     });
 
-    const recent = (attData ?? []).filter(a => a.status === 'absent' || a.status === 'justified').slice(0, 10);
+    const recent = (freqData ?? [])
+      .filter((a: any) => a.situacao === 'falta' || a.situacao === 'justificado')
+      .slice(0, 10);
 
     setData(result);
     setRecentAbsences(recent);
@@ -103,17 +100,12 @@ export default function StudentAttendance() {
             <View style={styles.overallRow}>
               <View>
                 <Text style={styles.overallLabel}>Frequência Geral</Text>
-                <Text style={[styles.overallValue, { color: pctColor(overallPct) }]}>
-                  {overallPct}%
-                </Text>
+                <Text style={[styles.overallValue, { color: pctColor(overallPct) }]}>{overallPct}%</Text>
                 <Text style={styles.overallSub}>Mínimo exigido: 75%</Text>
               </View>
               <View style={styles.gaugeWrap}>
                 <View style={styles.gaugeTrack}>
-                  <View style={[
-                    styles.gaugeFill,
-                    { width: `${overallPct}%` as any, backgroundColor: pctColor(overallPct) },
-                  ]} />
+                  <View style={[styles.gaugeFill, { width: `${overallPct}%` as any, backgroundColor: pctColor(overallPct) }]} />
                   <View style={[styles.gaugeMark, { left: '75%' as any }]} />
                 </View>
               </View>
@@ -140,15 +132,10 @@ export default function StudentAttendance() {
               <Card key={sd.subjectName} style={styles.subjectCard} padding={14}>
                 <View style={styles.subjectHeader}>
                   <Text style={styles.subjectName}>{sd.subjectName}</Text>
-                  <Text style={[styles.pctText, { color: pctColor(sd.percentage) }]}>
-                    {sd.percentage}%
-                  </Text>
+                  <Text style={[styles.pctText, { color: pctColor(sd.percentage) }]}>{sd.percentage}%</Text>
                 </View>
                 <View style={styles.progressBar}>
-                  <View style={[
-                    styles.progressFill,
-                    { width: `${sd.percentage}%` as any, backgroundColor: pctColor(sd.percentage) },
-                  ]} />
+                  <View style={[styles.progressFill, { width: `${sd.percentage}%` as any, backgroundColor: pctColor(sd.percentage) }]} />
                 </View>
                 <View style={styles.statsRow}>
                   <View style={styles.statItem}>
@@ -176,18 +163,18 @@ export default function StudentAttendance() {
         {recentAbsences.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Faltas Recentes</Text>
-            {recentAbsences.map(a => (
+            {recentAbsences.map((a: any) => (
               <Card key={a.id} style={styles.absenceCard} padding={12}>
                 <View style={styles.absenceRow}>
                   <Badge
-                    label={a.status === 'absent' ? 'Falta' : 'Justificada'}
-                    variant={a.status === 'absent' ? 'danger' : 'warning'}
+                    label={a.situacao === 'falta' ? 'Falta' : 'Justificada'}
+                    variant={a.situacao === 'falta' ? 'danger' : 'warning'}
                   />
                   <Text style={styles.absenceSubject}>
-                    {(a.class_subject as any)?.subject?.name ?? 'Disciplina'}
+                    {a.turma_disciplina?.disciplina?.nome ?? 'Disciplina'}
                   </Text>
                   <Text style={styles.absenceDate}>
-                    {new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                    {new Date(a.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                   </Text>
                 </View>
               </Card>

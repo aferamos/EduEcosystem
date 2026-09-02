@@ -24,7 +24,7 @@ export default function ModalNewClass() {
   const institutionId = user?.currentInstitution?.id;
 
   const shiftLabel = (s: string) =>
-    ({ morning: 'Manhã', afternoon: 'Tarde', evening: 'Noite', full: 'Integral' }[s] ?? s);
+    ({ manha: 'Manhã', tarde: 'Tarde', noite: 'Noite', integral: 'Integral' }[s] ?? s);
 
   const handleSave = async () => {
     setError('');
@@ -33,12 +33,13 @@ export default function ModalNewClass() {
       return;
     }
     setSaving(true);
-    const { error: e } = await supabase.from('classes').insert({
-      institution_id: institutionId,
-      name: form.name,
-      year: parseInt(form.year),
-      shift: form.shift || 'morning',
-      course_id: form.course_id || null,
+    // Escreve na tabela real `turmas` com colunas PT
+    const { error: e } = await supabase.from('turmas').insert({
+      instituicao_id: institutionId,
+      nome: form.name,
+      ano: parseInt(form.year),
+      turno: form.shift || 'manha',
+      curso_id: form.course_id || null,
     });
     setSaving(false);
     if (e) { setError(e.message); return; }
@@ -46,7 +47,7 @@ export default function ModalNewClass() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>Nova Turma</Text>
         <TouchableOpacity onPress={() => router.back()}>
@@ -71,7 +72,7 @@ export default function ModalNewClass() {
 
         <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Turno</Text>
         <View style={styles.shiftRow}>
-          {['morning', 'afternoon', 'evening', 'full'].map(s => (
+          {['manha', 'tarde', 'noite', 'integral'].map(s => (
             <TouchableOpacity
               key={s}
               onPress={() => setForm(f => ({ ...f, shift: s }))}
@@ -107,7 +108,7 @@ export default function ModalNewClass() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

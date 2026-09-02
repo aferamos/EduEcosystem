@@ -52,16 +52,16 @@ export default function AdminDashboard() {
     if (!institutionId) return;
 
     const [studentsRes, teachersRes, classesRes, coursesRes, occurrencesRes] = await Promise.all([
-      supabase.from('user_roles').select('id', { count: 'exact', head: true })
-        .eq('institution_id', institutionId).eq('role', 'aluno').eq('is_active', true),
-      supabase.from('user_roles').select('id', { count: 'exact', head: true })
-        .eq('institution_id', institutionId).eq('role', 'professor').eq('is_active', true),
-      supabase.from('classes').select('id', { count: 'exact', head: true })
-        .eq('institution_id', institutionId).eq('active', true),
-      supabase.from('courses').select('id', { count: 'exact', head: true })
-        .eq('institution_id', institutionId).eq('active', true),
-      supabase.from('occurrences').select('id', { count: 'exact', head: true })
-        .eq('institution_id', institutionId).eq('status', 'open'),
+      supabase.from('perfis_usuario').select('id', { count: 'exact', head: true })
+        .eq('instituicao_id', institutionId).eq('perfil', 'aluno').eq('ativo', true),
+      supabase.from('perfis_usuario').select('id', { count: 'exact', head: true })
+        .eq('instituicao_id', institutionId).eq('perfil', 'professor').eq('ativo', true),
+      supabase.from('turmas').select('id', { count: 'exact', head: true })
+        .eq('instituicao_id', institutionId).eq('ativo', true),
+      supabase.from('cursos').select('id', { count: 'exact', head: true })
+        .eq('instituicao_id', institutionId).eq('ativo', true),
+      supabase.from('ocorrencias').select('id', { count: 'exact', head: true })
+        .eq('instituicao_id', institutionId).eq('situacao', 'aberta'),
     ]);
 
     setStats({
@@ -74,13 +74,23 @@ export default function AdminDashboard() {
     });
 
     const { data: occ } = await supabase
-      .from('occurrences')
-      .select('*, student_profile:profiles!student_id(full_name)')
-      .eq('institution_id', institutionId)
-      .order('created_at', { ascending: false })
+      .from('ocorrencias')
+      .select('*, perfil_aluno:perfis!aluno_id(nome_completo)')
+      .eq('instituicao_id', institutionId)
+      .order('criado_em', { ascending: false })
       .limit(5);
 
-    setRecentOccurrences(occ ?? []);
+    setRecentOccurrences(
+      (occ ?? []).map((o: any) => ({
+        ...o,
+        title: o.titulo,
+        type: o.tipo,
+        severity: o.gravidade,
+        status: o.situacao,
+        created_at: o.criado_em,
+        student_profile: o.perfil_aluno ? { full_name: o.perfil_aluno.nome_completo } : null,
+      }))
+    );
   };
 
   useEffect(() => { loadData(); }, [institutionId]);
@@ -91,16 +101,23 @@ export default function AdminDashboard() {
     setRefreshing(false);
   };
 
+  const greeting = () => {
+    const hora = new Date().getHours();
+    if (hora < 12) return 'Bom dia';
+    if (hora < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
   const severityColor = (s: string | null) =>
-    s === 'high' ? theme.danger : s === 'medium' ? theme.warning : theme.textMuted;
+    s === 'alta' ? theme.danger : s === 'media' ? theme.warning : theme.textMuted;
 
   return (
     <View style={styles.flex}>
       <LinearGradient colors={[theme.primary, theme.primaryDark]} style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.greeting}>Bom dia,</Text>
-            <Text style={styles.name}>{user?.profile.full_name || 'Administrador'}</Text>
+            <Text style={styles.greeting}>{greeting()},</Text>
+            <Text style={styles.name}>{user?.profile.full_name || user?.email?.split('@')[0] || 'Administrador'}</Text>
           </View>
           <TouchableOpacity onPress={() => signOut()} style={styles.logoutBtn}>
             <Text style={styles.logoutText}>Sair</Text>
@@ -121,7 +138,7 @@ export default function AdminDashboard() {
       >
         <Text style={styles.sectionLabel}>Visão Geral</Text>
         <View style={styles.statsRow}>
-        <StatCard label="Alunos" value={stats.students} icon={<GraduationCap size={20} color={theme.primary} />} color={theme.primary} onPress={() => router.push('/modal-students')} />
+          <StatCard label="Alunos" value={stats.students} icon={<GraduationCap size={20} color={theme.primary} />} color={theme.primary} onPress={() => router.push('/modal-students')} />
           <StatCard label="Professores" value={stats.teachers} icon={<Users size={20} color={theme.secondary} />} color={theme.secondary} onPress={() => router.push('/modal-teachers')} />
         </View>
         <View style={styles.statsRow}>
@@ -175,10 +192,10 @@ export default function AdminDashboard() {
           <Text style={styles.sectionLabel}>Ações Rápidas</Text>
           <View style={styles.actionsGrid}>
             {[
-            { label: 'Novo Usuário', icon: <Users size={20} color={theme.primary} />, desc: 'Cadastrar aluno, professor, Coordenador...', onPress: () => router.push('/modal-new-user') },
-            { label: 'Nova Turma', icon: <BookOpen size={20} color={theme.secondary} />, desc: 'Criar turma acadêmica', onPress: () => router.push('/modal-new-class') },
-            { label: 'Comunicado', icon: <Bell size={20} color={theme.warning} />, desc: 'Enviar para comunidade' },
-            { label: 'Relatório', icon: <TrendingUp size={20} color={theme.success} />, desc: 'Ver indicadores' },
+              { label: 'Novo Usuário', icon: <Users size={20} color={theme.primary} />, desc: 'Cadastrar aluno, professor, Coordenador...', onPress: () => router.push('/modal-new-user') },
+              { label: 'Nova Turma', icon: <BookOpen size={20} color={theme.secondary} />, desc: 'Criar turma acadêmica', onPress: () => router.push('/modal-new-class') },
+              { label: 'Comunicado', icon: <Bell size={20} color={theme.warning} />, desc: 'Enviar para comunidade' },
+              { label: 'Relatório', icon: <TrendingUp size={20} color={theme.success} />, desc: 'Ver indicadores' },
             ].map(action => (
               <TouchableOpacity
                 key={action.label}
@@ -208,20 +225,9 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   greeting: { fontSize: 13, color: 'rgba(255,255,255,0.75)' },
   name: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
-  logoutBtn: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
+  logoutBtn: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   logoutText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
-  institutionChip: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
+  institutionChip: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start' },
   institutionText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
   scroll: { flex: 1 },
   content: { padding: 16, gap: 12 },

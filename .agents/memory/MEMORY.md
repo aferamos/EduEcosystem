@@ -1,0 +1,1 @@
+- [Execução Expo no Replit](expo-replit-runtime.md) — o acesso pelo Expo Go precisa de túnel; o Metro deve ignorar os arquivos auxiliares de `.local`.

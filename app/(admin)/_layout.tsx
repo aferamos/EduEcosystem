@@ -75,6 +75,13 @@ export default function AdminLayout() {
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="access-control"
+        options={{
+          href: null,
+          title: 'Controle de Acesso',
+        }}
+      />
     </Tabs>
   );
 }

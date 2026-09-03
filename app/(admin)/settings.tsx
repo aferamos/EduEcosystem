@@ -10,6 +10,7 @@ import {
 import {
   Building2,
   Palette,
+  Shield,
   Bell,
   LogOut,
   ChevronRight,
@@ -19,6 +20,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -76,6 +78,12 @@ export default function SettingsScreen() {
       label: 'Identidade Visual',
       desc: 'Cores e branding',
       onPress: () => setShowBrandingModal(true),
+    },
+    {
+      icon: <Shield size={20} color={theme.success} />,
+      label: 'Controle de Acesso',
+      desc: 'Gerenciar papéis e usuários autorizados',
+      onPress: () => router.push('/(admin)/access-control'),
     },
     {
       icon: <Bell size={20} color={theme.warning} />,

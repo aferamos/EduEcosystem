@@ -62,6 +62,8 @@ interface RoleDraft {
   level: string;
 }
 
+type AccessTab = 'roles' | 'users';
+
 const STANDARD_ROLES: Record<string, Omit<RoleItem, 'id' | 'memberCount' | 'permissionCount'>> = {
   super_admin: { key: 'super_admin', name: 'Super Administrador', description: 'Acesso global à plataforma', level: 5, system: true, active: true },
   admin: { key: 'admin', name: 'Administrador da Instituição', description: 'Governança completa da instituição', level: 5, system: true, active: true },
@@ -100,6 +102,7 @@ export default function AccessControlScreen() {
 
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
+  const [accessTab, setAccessTab] = useState<AccessTab>('roles');
   const [roleSearch, setRoleSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState<RoleItem | null>(null);
@@ -349,6 +352,26 @@ export default function AccessControlScreen() {
         <Text style={styles.headerDescription}>
           Administre papéis e usuários autorizados da sua instituição.
         </Text>
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            onPress={() => setAccessTab('roles')}
+            style={[styles.tabBtn, accessTab === 'roles' && styles.activeTabBtn]}
+          >
+            <ShieldCheck size={16} color={accessTab === 'roles' ? '#FFFFFF' : 'rgba(255,255,255,0.7)'} />
+            <Text style={[styles.tabText, accessTab === 'roles' && styles.activeTabText]}>
+              Papéis institucionais
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setAccessTab('users')}
+            style={[styles.tabBtn, accessTab === 'users' && styles.activeTabBtn]}
+          >
+            <Users size={16} color={accessTab === 'users' ? '#FFFFFF' : 'rgba(255,255,255,0.7)'} />
+            <Text style={[styles.tabText, accessTab === 'users' && styles.activeTabText]}>
+              Usuários autorizados
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -370,75 +393,81 @@ export default function AccessControlScreen() {
           <StatCard icon={<Layers3 size={19} color="#7C3AED" />} value={roles.length} label="Papéis" color="#7C3AED" />
         </View>
 
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeaderMain}>
-            <View style={styles.sectionIcon}><ShieldCheck size={19} color={theme.primary} /></View>
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Papéis institucionais</Text>
-              <Text style={styles.sectionDescription}>Consulte e gerencie os grupos de acesso.</Text>
-            </View>
-          </View>
-          <TouchableOpacity onPress={openCreateRole} style={[styles.primaryAction, { backgroundColor: theme.primary }]}>
-            <Plus size={16} color="#FFFFFF" />
-            <Text style={styles.primaryActionText}>Novo papel</Text>
-          </TouchableOpacity>
-        </View>
-
-        <SearchBox value={roleSearch} onChangeText={setRoleSearch} placeholder="Buscar papel..." theme={theme} />
-        <View style={styles.roleList}>
-          {filteredRoles.map((role) => (
-            <RoleCard
-              key={role.key}
-              role={role}
-              selected={selectedRole?.key === role.key}
-              theme={theme}
-              onSelect={() => setSelectedRole(role)}
-              onEdit={() => openEditRole(role)}
-              onToggle={() => toggleRole(role)}
-            />
-          ))}
-          {!filteredRoles.length ? <Card padding={18}><Text style={[styles.emptyText, { color: theme.textMuted }]}>Nenhum papel encontrado.</Text></Card> : null}
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeaderMain}>
-            <View style={styles.sectionIcon}><Users size={19} color={theme.primary} /></View>
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Usuários autorizados</Text>
-              <Text style={styles.sectionDescription}>Consulte e administre os acessos atribuídos.</Text>
-            </View>
-          </View>
-        </View>
-
-        <SearchBox value={userSearch} onChangeText={setUserSearch} placeholder="Buscar usuário..." theme={theme} />
-        <Card style={styles.userCardList} padding={0}>
-          {filteredUsers.map((accessUser) => {
-            const role = roles.find((item) => item.key === accessUser.role);
-            const isCurrentUser = accessUser.userId === user?.id;
-            return (
-              <View key={accessUser.userId} style={[styles.userRow, { borderBottomColor: theme.border }]}>
-                <View style={[styles.userAvatar, { backgroundColor: theme.primary + '16' }]}><UserRound size={18} color={theme.primary} /></View>
-                <View style={styles.userInfo}>
-                  <Text style={[styles.userName, { color: theme.text }]}>{accessUser.name}</Text>
-                  <View style={styles.userMetaRow}>
-                    <Text style={[styles.userRole, { color: theme.primary }]}>{role?.name ?? accessUser.role}</Text>
-                    <View style={[styles.statusDot, { backgroundColor: accessUser.active ? theme.success : theme.danger }]} />
-                    <Text style={[styles.userStatus, { color: accessUser.active ? theme.success : theme.danger }]}>{accessUser.active ? 'Ativo' : 'Inativo'}</Text>
-                  </View>
+        {accessTab === 'roles' ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderMain}>
+                <View style={styles.sectionIcon}><ShieldCheck size={19} color={theme.primary} /></View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={styles.sectionTitle}>Papéis institucionais</Text>
+                  <Text style={styles.sectionDescription}>Consulte e gerencie os grupos de acesso.</Text>
                 </View>
-                <TouchableOpacity onPress={() => openUserRole(accessUser)} style={styles.userAction} accessibilityLabel={`Editar acesso de ${accessUser.name}`}>
-                  <ChevronRight size={18} color={theme.textMuted} />
-                </TouchableOpacity>
-                {!isCurrentUser ? (
-                  <TouchableOpacity onPress={() => toggleUserStatus(accessUser)} style={styles.statusAction}>
-                    <Power size={15} color={accessUser.active ? theme.danger : theme.success} />
-                  </TouchableOpacity>
-                ) : null}
               </View>
-            );
-          })}
-          {!filteredUsers.length ? <Text style={[styles.emptyText, { color: theme.textMuted }]}>Nenhum usuário autorizado encontrado.</Text> : null}
-        </Card>
+              <TouchableOpacity onPress={openCreateRole} style={[styles.primaryAction, { backgroundColor: theme.primary }]}>
+                <Plus size={16} color="#FFFFFF" />
+                <Text style={styles.primaryActionText}>Novo papel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <SearchBox value={roleSearch} onChangeText={setRoleSearch} placeholder="Buscar papel..." theme={theme} />
+            <View style={styles.roleList}>
+              {filteredRoles.map((role) => (
+                <RoleCard
+                  key={role.key}
+                  role={role}
+                  selected={selectedRole?.key === role.key}
+                  theme={theme}
+                  onSelect={() => setSelectedRole(role)}
+                  onEdit={() => openEditRole(role)}
+                  onToggle={() => toggleRole(role)}
+                />
+              ))}
+              {!filteredRoles.length ? <Card padding={18}><Text style={[styles.emptyText, { color: theme.textMuted }]}>Nenhum papel encontrado.</Text></Card> : null}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderMain}>
+                <View style={styles.sectionIcon}><Users size={19} color={theme.primary} /></View>
+                <View style={styles.sectionHeaderText}>
+                  <Text style={styles.sectionTitle}>Usuários autorizados</Text>
+                  <Text style={styles.sectionDescription}>Consulte e administre os acessos atribuídos.</Text>
+                </View>
+              </View>
+            </View>
+
+            <SearchBox value={userSearch} onChangeText={setUserSearch} placeholder="Buscar usuário..." theme={theme} />
+            <Card style={styles.userCardList} padding={0}>
+              {filteredUsers.map((accessUser) => {
+                const role = roles.find((item) => item.key === accessUser.role);
+                const isCurrentUser = accessUser.userId === user?.id;
+                return (
+                  <View key={accessUser.userId} style={[styles.userRow, { borderBottomColor: theme.border }]}>
+                    <View style={[styles.userAvatar, { backgroundColor: theme.primary + '16' }]}><UserRound size={18} color={theme.primary} /></View>
+                    <View style={styles.userInfo}>
+                      <Text style={[styles.userName, { color: theme.text }]}>{accessUser.name}</Text>
+                      <View style={styles.userMetaRow}>
+                        <Text style={[styles.userRole, { color: theme.primary }]}>{role?.name ?? accessUser.role}</Text>
+                        <View style={[styles.statusDot, { backgroundColor: accessUser.active ? theme.success : theme.danger }]} />
+                        <Text style={[styles.userStatus, { color: accessUser.active ? theme.success : theme.danger }]}>{accessUser.active ? 'Ativo' : 'Inativo'}</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={() => openUserRole(accessUser)} style={styles.userAction} accessibilityLabel={`Editar acesso de ${accessUser.name}`}>
+                      <ChevronRight size={18} color={theme.textMuted} />
+                    </TouchableOpacity>
+                    {!isCurrentUser ? (
+                      <TouchableOpacity onPress={() => toggleUserStatus(accessUser)} style={styles.statusAction}>
+                        <Power size={15} color={accessUser.active ? theme.danger : theme.success} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                );
+              })}
+              {!filteredUsers.length ? <Text style={[styles.emptyText, { color: theme.textMuted }]}>Nenhum usuário autorizado encontrado.</Text> : null}
+            </Card>
+          </>
+        )}
       </ScrollView>
 
       <Modal visible={roleModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setRoleModalVisible(false)}>
@@ -539,6 +568,11 @@ const styles = StyleSheet.create({
   headerSubtitle: { color: 'rgba(255,255,255,0.76)', fontSize: 12, marginTop: 2 },
   headerIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)' },
   headerDescription: { color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 19, marginTop: 18 },
+  tabs: { flexDirection: 'row', gap: 6, marginTop: 14 },
+  tabBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  activeTabBtn: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  tabText: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
+  activeTabText: { color: '#FFFFFF', fontWeight: '700' },
   content: { padding: 16, gap: 16 },
   warningBanner: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', backgroundColor: '#FEF3C7', borderRadius: 11, padding: 12 },
   warningText: { flex: 1, color: '#92400E', fontSize: 12, lineHeight: 17 },

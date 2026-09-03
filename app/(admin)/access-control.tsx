@@ -48,6 +48,11 @@ interface RoleItem {
   permissionCount: number;
 }
 
+interface RolePermission {
+  recurso: string;
+  acao: string;
+}
+
 interface AccessUser {
   id: string;
   userId: string;
@@ -94,6 +99,12 @@ function roleKey(name: string) {
   return `${normalized || 'papel'}_${Date.now().toString(36)}`;
 }
 
+function formatPermissionPart(value: string) {
+  return value
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export default function AccessControlScreen() {
   const { user } = useAuth();
   const theme = useTheme();
@@ -102,6 +113,7 @@ export default function AccessControlScreen() {
 
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
+  const [permissionsByRole, setPermissionsByRole] = useState<Record<string, RolePermission[]>>({});
   const [accessTab, setAccessTab] = useState<AccessTab>('roles');
   const [roleSearch, setRoleSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
@@ -114,6 +126,7 @@ export default function AccessControlScreen() {
   const [roleModalMode, setRoleModalMode] = useState<'create' | 'edit'>('create');
   const [roleDraft, setRoleDraft] = useState<RoleDraft>({ name: '', description: '', level: '1' });
   const [savingRole, setSavingRole] = useState(false);
+  const [roleDetailsTarget, setRoleDetailsTarget] = useState<RoleItem | null>(null);
 
   const [userModalTarget, setUserModalTarget] = useState<AccessUser | null>(null);
   const [userRoleDraft, setUserRoleDraft] = useState('');
@@ -177,6 +190,12 @@ export default function AccessControlScreen() {
       ...memberships.map((row: any) => row.perfil),
     ]);
     const permissions = globalPermissionRows ?? [];
+    const nextPermissionsByRole = permissions.reduce((map: Record<string, RolePermission[]>, permission: any) => {
+      if (!map[permission.perfil]) map[permission.perfil] = [];
+      map[permission.perfil].push({ recurso: permission.recurso, acao: permission.acao });
+      return map;
+    }, {});
+    setPermissionsByRole(nextPermissionsByRole);
 
     const roleItems = [...roleKeys].map((key) => {
       const stored = storedRoles.find((row: any) => row.chave === key);
@@ -240,7 +259,14 @@ export default function AccessControlScreen() {
 
   const openEditRole = (role: RoleItem) => {
     if (role.system) {
-      Alert.alert('Papel protegido', 'Papéis do sistema não podem ter nome ou nível alterados.');
+      Alert.alert(
+        'Papel protegido',
+        'Papéis do sistema não podem ter nome ou nível alterados.',
+        [
+          { text: 'Fechar', style: 'cancel' },
+          { text: 'Consultar papel', onPress: () => setRoleDetailsTarget(role) },
+        ],
+      );
       return;
     }
     if (!role.id) {
@@ -323,6 +349,10 @@ export default function AccessControlScreen() {
     if (updateError) Alert.alert('Não foi possível atualizar o usuário', updateError.message);
     else await loadData();
   };
+
+  const roleDetailsPermissions = roleDetailsTarget
+    ? permissionsByRole[roleDetailsTarget.key] ?? []
+    : [];
 
   const activeUsers = accessUsers.filter((accessUser) => accessUser.active).length;
   const inactiveUsers = accessUsers.length - activeUsers;
@@ -482,6 +512,72 @@ export default function AccessControlScreen() {
         </View>
       </Modal>
 
+      <Modal visible={roleDetailsTarget !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setRoleDetailsTarget(null)}>
+        <View style={[styles.modal, { backgroundColor: theme.surface }]}>
+          <ModalHeader title="Consultar papel" subtitle="Visualização somente leitura" onClose={() => setRoleDetailsTarget(null)} theme={theme} />
+          {roleDetailsTarget ? (
+            <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={[styles.detailsHero, { backgroundColor: theme.primary + '10', borderColor: theme.primary + '28' }]}>
+                <View style={[styles.detailsHeroIcon, { backgroundColor: theme.primary }]}>
+                  <ShieldCheck size={23} color="#FFFFFF" />
+                </View>
+                <View style={styles.detailsHeroText}>
+                  <View style={styles.roleNameRow}>
+                    <Text style={[styles.detailsName, { color: theme.text }]}>{roleDetailsTarget.name}</Text>
+                    <View style={styles.systemMiniPill}>
+                      <LockKeyhole size={11} color="#92400E" />
+                      <Text style={styles.systemMiniPillText}>Sistema</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.detailsDescription, { color: theme.textMuted }]}>
+                    {roleDetailsTarget.description}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.detailsStats}>
+                <DetailStat label="Nível de acesso" value={`${roleDetailsTarget.level}/5`} theme={theme} />
+                <DetailStat label="Usuários" value={String(roleDetailsTarget.memberCount)} theme={theme} />
+                <DetailStat label="Permissões" value={String(roleDetailsPermissions.length)} theme={theme} />
+              </View>
+
+              <View style={styles.detailsSection}>
+                <Text style={[styles.detailsSectionTitle, { color: theme.text }]}>Dados do papel</Text>
+                <View style={[styles.detailsDataCard, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+                  <DetailRow label="Chave do papel" value={roleDetailsTarget.key} theme={theme} />
+                  <DetailRow label="Tipo" value="Papel do sistema" theme={theme} />
+                  <DetailRow label="Status" value={roleDetailsTarget.active ? 'Ativo' : 'Inativo'} theme={theme} />
+                </View>
+              </View>
+
+              <View style={styles.detailsSection}>
+                <Text style={[styles.detailsSectionTitle, { color: theme.text }]}>Permissões globais</Text>
+                {roleDetailsPermissions.length ? (
+                  <View style={styles.permissionList}>
+                    {roleDetailsPermissions.map((permission, index) => (
+                      <View key={`${permission.recurso}-${permission.acao}-${index}`} style={[styles.permissionRow, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+                        <View style={[styles.permissionIcon, { backgroundColor: theme.primary + '14' }]}>
+                          <Check size={15} color={theme.primary} />
+                        </View>
+                        <View style={styles.permissionText}>
+                          <Text style={[styles.permissionName, { color: theme.text }]}>{formatPermissionPart(permission.recurso)}</Text>
+                          <Text style={[styles.permissionAction, { color: theme.textMuted }]}>{formatPermissionPart(permission.acao)}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={[styles.noPermissions, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
+                    <CircleHelp size={18} color={theme.textMuted} />
+                    <Text style={[styles.noPermissionsText, { color: theme.textMuted }]}>Nenhuma permissão global cadastrada para este papel.</Text>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          ) : null}
+        </View>
+      </Modal>
+
       <Modal visible={userModalTarget !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setUserModalTarget(null)}>
         <View style={[styles.modal, { backgroundColor: theme.surface }]}>
           <ModalHeader title="Papel do usuário" subtitle={userModalTarget?.name ?? 'Usuário autorizado'} onClose={() => setUserModalTarget(null)} theme={theme} />
@@ -556,6 +652,24 @@ function Field({ label, value, onChangeText, placeholder, theme, multiline, keyb
   return <View style={styles.field}><Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={theme.textMuted} keyboardType={keyboardType} multiline={multiline} style={[styles.fieldInput, { backgroundColor: theme.surfaceAlt, borderColor: theme.border, color: theme.text }, multiline && styles.multilineInput]} /></View>;
 }
 
+function DetailStat({ label, value, theme }: { label: string; value: string; theme: ReturnType<typeof useTheme> }) {
+  return (
+    <View style={[styles.detailStat, { backgroundColor: theme.surfaceAlt }]}>
+      <Text style={[styles.detailStatValue, { color: theme.text }]}>{value}</Text>
+      <Text style={[styles.detailStatLabel, { color: theme.textMuted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function DetailRow({ label, value, theme }: { label: string; value: string; theme: ReturnType<typeof useTheme> }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={[styles.detailRowLabel, { color: theme.textMuted }]}>{label}</Text>
+      <Text style={[styles.detailRowValue, { color: theme.text }]}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
@@ -625,6 +739,30 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: '800' },
   modalSubtitle: { fontSize: 12, marginTop: 3 },
   modalBody: { padding: 20, gap: 17 },
+  detailsHero: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, padding: 14 },
+  detailsHeroIcon: { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  detailsHeroText: { flex: 1, minWidth: 0 },
+  detailsName: { fontSize: 17, fontWeight: '800', flexShrink: 1 },
+  detailsDescription: { fontSize: 12, lineHeight: 17, marginTop: 5 },
+  detailsStats: { flexDirection: 'row', gap: 9 },
+  detailStat: { flex: 1, borderRadius: 11, padding: 11, gap: 3 },
+  detailStatValue: { fontSize: 18, fontWeight: '800' },
+  detailStatLabel: { fontSize: 10, fontWeight: '600' },
+  detailsSection: { gap: 9 },
+  detailsSectionTitle: { fontSize: 15, fontWeight: '800' },
+  detailsDataCard: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13 },
+  detailRow: { minHeight: 43, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  detailRowLast: { borderBottomWidth: 0 },
+  detailRowLabel: { fontSize: 12 },
+  detailRowValue: { fontSize: 12, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  permissionList: { gap: 8 },
+  permissionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 11, padding: 10 },
+  permissionIcon: { width: 29, height: 29, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  permissionText: { flex: 1, gap: 2 },
+  permissionName: { fontSize: 13, fontWeight: '700' },
+  permissionAction: { fontSize: 11 },
+  noPermissions: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 11, padding: 12 },
+  noPermissionsText: { flex: 1, fontSize: 12, lineHeight: 17 },
   field: { gap: 7 },
   fieldLabel: { fontSize: 13, fontWeight: '700' },
   fieldInput: { minHeight: 46, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14 },

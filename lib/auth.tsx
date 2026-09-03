@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (currentInstitution && currentRole) {
-        const perms = await getRolePermissions(currentRole, currentInstitution.id);
+        const perms = await getRolePermissions(currentRole);
       setUser({
         id: userId,
         email: sess.user.email!,
@@ -197,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchInstitution = async (institution: Institution, role: UserRole) => {
     if (!user) return;
-    const perms = await getRolePermissions(role, institution.id);
+    const perms = await getRolePermissions(role);
     await setUserActiveContext(user.id, institution.id, role, user.profile.id);
     setUser({
       ...user,

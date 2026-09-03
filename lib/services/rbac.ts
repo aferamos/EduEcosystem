@@ -9,36 +9,7 @@ export interface Permission {
   scope: 'own' | 'institution' | 'all';
 }
 
-export async function getRolePermissions(role: UserRole, institutionId?: string): Promise<RolePermission[]> {
-  if (institutionId) {
-    const { data: institutionalRole, error: roleError } = await supabase
-      .from('papeis')
-      .select('id, ativo')
-      .eq('instituicao_id', institutionId)
-      .eq('chave', role)
-      .maybeSingle();
-
-    if (!roleError && institutionalRole?.id) {
-      if (!institutionalRole.ativo) return [];
-
-      const { data: institutionalPermissions, error: permissionError } = await supabase
-        .from('permissoes_papel')
-        .select('id, recurso, acao, escopo, criado_em')
-        .eq('papel_id', institutionalRole.id);
-
-      if (!permissionError) {
-        return (institutionalPermissions ?? []).map((r) => ({
-          id: r.id,
-          role,
-          resource: r.recurso,
-          action: r.acao as Action,
-          scope: r.escopo as 'own' | 'institution' | 'all',
-          created_at: r.criado_em,
-        }));
-      }
-    }
-  }
-
+export async function getRolePermissions(role: UserRole): Promise<RolePermission[]> {
   const { data, error } = await supabase
     .from('permissoes_perfil')
     .select('id, recurso, acao, escopo, criado_em')

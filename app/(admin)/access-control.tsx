@@ -51,6 +51,7 @@ interface RoleItem {
 interface RolePermission {
   recurso: string;
   acao: string;
+  escopo: string;
 }
 
 interface AccessUser {
@@ -105,6 +106,57 @@ function formatPermissionPart(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const PERMISSION_RESOURCE_LABELS: Record<string, string> = {
+  institutions: 'Instituições',
+  users: 'Usuários',
+  roles: 'Papéis',
+  audit_logs: 'Registros de auditoria',
+  communications: 'Comunicados',
+  events: 'Eventos',
+  settings: 'Configurações',
+  courses: 'Cursos',
+  classes: 'Turmas',
+  subjects: 'Disciplinas',
+  academic_periods: 'Períodos letivos',
+  reports: 'Relatórios',
+  grades: 'Notas',
+  attendance: 'Frequência',
+  occurrences: 'Ocorrências',
+  notifications: 'Notificações',
+  teachers: 'Professores',
+  students: 'Alunos',
+  enrollments: 'Matrículas',
+  class_subjects: 'Disciplinas da turma',
+  assessments: 'Avaliações',
+};
+
+const PERMISSION_ACTION_LABELS: Record<string, string> = {
+  read: 'Consultar',
+  create: 'Criar',
+  update: 'Editar',
+  delete: 'Excluir',
+  manage: 'Gerenciar',
+  export: 'Exportar',
+};
+
+const PERMISSION_SCOPE_LABELS: Record<string, string> = {
+  all: 'Global',
+  institution: 'Instituição',
+  own: 'Próprio',
+};
+
+function permissionResourceLabel(value: string) {
+  return PERMISSION_RESOURCE_LABELS[value] ?? formatPermissionPart(value);
+}
+
+function permissionActionLabel(value: string) {
+  return PERMISSION_ACTION_LABELS[value] ?? formatPermissionPart(value);
+}
+
+function permissionScopeLabel(value: string) {
+  return PERMISSION_SCOPE_LABELS[value] ?? formatPermissionPart(value);
+}
+
 export default function AccessControlScreen() {
   const { user } = useAuth();
   const theme = useTheme();
@@ -154,7 +206,7 @@ export default function AccessControlScreen() {
         .select('id, usuario_id, perfil, ativo, criado_em')
         .eq('instituicao_id', institutionId)
         .order('criado_em', { ascending: false }),
-      supabase.from('permissoes_perfil').select('perfil, recurso, acao'),
+       supabase.from('permissoes_perfil').select('perfil, recurso, acao, escopo'),
     ]);
 
     if (membershipError) {
@@ -192,7 +244,7 @@ export default function AccessControlScreen() {
     const permissions = globalPermissionRows ?? [];
     const nextPermissionsByRole = permissions.reduce((map: Record<string, RolePermission[]>, permission: any) => {
       if (!map[permission.perfil]) map[permission.perfil] = [];
-      map[permission.perfil].push({ recurso: permission.recurso, acao: permission.acao });
+      map[permission.perfil].push({ recurso: permission.recurso, acao: permission.acao, escopo: permission.escopo });
       return map;
     }, {});
     setPermissionsByRole(nextPermissionsByRole);
@@ -560,8 +612,12 @@ export default function AccessControlScreen() {
                           <Check size={15} color={theme.primary} />
                         </View>
                         <View style={styles.permissionText}>
-                          <Text style={[styles.permissionName, { color: theme.text }]}>{formatPermissionPart(permission.recurso)}</Text>
-                          <Text style={[styles.permissionAction, { color: theme.textMuted }]}>{formatPermissionPart(permission.acao)}</Text>
+                          <Text style={[styles.permissionName, { color: theme.text }]}>
+                            {permissionActionLabel(permission.acao)} {permissionResourceLabel(permission.recurso)}
+                          </Text>
+                          <Text style={[styles.permissionAction, { color: theme.textMuted }]}>
+                            Escopo: {permissionScopeLabel(permission.escopo)}
+                          </Text>
                         </View>
                       </View>
                     ))}

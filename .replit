@@ -22,7 +22,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev -- --web --port 5000 --host tunnel"
+args = "BROWSER=none npm run dev -- --web --port 5000 --host tunnel"
 waitForPort = 5000
 
 [[ports]]

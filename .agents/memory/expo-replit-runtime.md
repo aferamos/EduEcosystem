@@ -7,4 +7,4 @@ O Expo Go precisa receber um endereço de túnel público; `localhost` ou `127.0
 
 **Why:** O ambiente Replit é remoto em relação ao celular, e o Expo pode tentar observar arquivos de suporte temporários que não existem mais. Com `--web`, o Expo CLI também pode tentar abrir um navegador com `xdg-open`, indisponível no workflow headless, e falhar depois de conectar o túnel.
 
-**How to apply:** Ao ajustar a execução mobile, use o modo de túnel do Expo, preserve a exclusão de `.local` na configuração do Metro e defina `BROWSER=none` no workflow web. Depois de instalar `expo-dev-client`, mantenha `--go` no workflow principal se o Android ainda deve usar Expo Go; use `npm run dev:client` para o app de desenvolvimento nativo.
+**How to apply:** Ao ajustar a execução mobile, use o modo de túnel do Expo, preserve a exclusão de `.local` na configuração do Metro e defina `BROWSER=none` no workflow web para manter Metro ativo sem abrir navegador no ambiente remoto.

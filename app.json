@@ -8,6 +8,7 @@
     "scheme": "eduecosystem",
     "userInterfaceStyle": "light",
     "ios": {
+      "bundleIdentifier": "com.alessandroramos.eduecosystem",
       "supportsTablet": true
     },
     "web": {

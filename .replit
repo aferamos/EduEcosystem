@@ -1,5 +1,5 @@
 modules = ["nodejs-24"]
-run = "npm run dev -- --web --port 5000 --host tunnel"
+run = "BROWSER=none npm run dev -- --web --go --port 5000 --host tunnel"
 
 [workflows]
 runButton = "Project"
@@ -22,7 +22,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "BROWSER=none npm run dev -- --web --port 5000 --host tunnel"
+args = "BROWSER=none npm run dev -- --web --go --port 5000 --host tunnel"
 waitForPort = 5000
 
 [[ports]]

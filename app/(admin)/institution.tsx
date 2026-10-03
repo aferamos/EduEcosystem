@@ -40,10 +40,29 @@ function toDraft(institution: Institution | null): InstitutionDraft {
   return {
     name: institution?.name ?? '',
     email: institution?.email ?? '',
-    phone: institution?.phone ?? '',
+    phone: formatBrazilianPhone(institution?.phone),
     address: institution?.address ?? '',
     city: institution?.city ?? '',
   };
+}
+
+function formatBrazilianPhone(value?: string | null) {
+  const originalDigits = (value ?? '').replace(/\D/g, '');
+  if (!originalDigits) return '';
+
+  const hasCountryCode = originalDigits.startsWith('55') && originalDigits.length > 11;
+  const digits = (hasCountryCode ? originalDigits.slice(2) : originalDigits).slice(0, 11);
+  const countryPrefix = hasCountryCode ? '+55 ' : '';
+  if (digits.length <= 2) return `${countryPrefix}(${digits}`;
+
+  const areaCode = digits.slice(0, 2);
+  const number = digits.slice(2);
+  if (digits.length <= 6) return `${countryPrefix}(${areaCode}) ${number}`;
+
+  const firstPartLength = digits.length > 10 ? 5 : 4;
+  const firstPart = number.slice(0, firstPartLength);
+  const secondPart = number.slice(firstPartLength);
+  return `${countryPrefix}(${areaCode}) ${firstPart}${secondPart ? `-${secondPart}` : ''}`;
 }
 
 function mapInstitution(row: any): Institution {
@@ -143,7 +162,7 @@ export default function InstitutionScreen() {
     (
       draft.name.trim() !== institution.name ||
       draft.email.trim() !== (institution.email ?? '') ||
-      draft.phone.trim() !== (institution.phone ?? '') ||
+      formatBrazilianPhone(draft.phone) !== formatBrazilianPhone(institution.phone) ||
       draft.address.trim() !== (institution.address ?? '') ||
       draft.city.trim() !== (institution.city ?? '')
     ),
@@ -185,7 +204,7 @@ export default function InstitutionScreen() {
         .update({
           nome: name,
           email: email || null,
-          telefone: draft.phone.trim() || null,
+          telefone: formatBrazilianPhone(draft.phone) || null,
           endereco: draft.address.trim() || null,
           cidade: draft.city.trim() || null,
         })
@@ -267,7 +286,7 @@ export default function InstitutionScreen() {
               <View style={styles.heroInfo}>
                 <Text style={[styles.heroName, { color: theme.text }]} numberOfLines={2}>{institution.name}</Text>
                 <Text style={[styles.heroMeta, { color: theme.textMuted }]}>
-                  {institution.city || 'Cidade não informada'} · {institution.slug}
+                  {institution.city || 'Cidade não informada'}
                 </Text>
               </View>
               <View style={[styles.statusBadge, { backgroundColor: institution.active ? '#D1FAE5' : '#FEE2E2' }]}>
@@ -322,8 +341,8 @@ export default function InstitutionScreen() {
                 <FormField
                   label="Telefone"
                   value={draft.phone}
-                  onChangeText={(phone) => setDraft((current) => ({ ...current, phone }))}
-                  placeholder="(00) 00000-0000"
+                  onChangeText={(phone) => setDraft((current) => ({ ...current, phone: formatBrazilianPhone(phone) }))}
+                  placeholder="(11) 98765-4321"
                   keyboardType="phone-pad"
                   theme={theme}
                 />
@@ -377,7 +396,7 @@ export default function InstitutionScreen() {
                   />
                   <InfoRow
                     label="Telefone"
-                    value={institution.phone || 'Não informado'}
+                    value={formatBrazilianPhone(institution.phone) || 'Não informado'}
                     icon={<Phone size={15} color={theme.textMuted} />}
                     theme={theme}
                   />

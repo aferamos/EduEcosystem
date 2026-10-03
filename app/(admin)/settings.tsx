@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -23,7 +24,6 @@ import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
 import RoleBadge from '@/components/RoleBadge';
 
 const PRESET_COLORS = [
@@ -36,31 +36,36 @@ const PRESET_COLORS = [
 ];
 
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshUser } = useAuth();
   const theme = useTheme();
   const [institution, setInstitution] = useState(user?.currentInstitution);
   const [showBrandingModal, setShowBrandingModal] = useState(false);
   const [selectedColor, setSelectedColor] = useState(0);
-  const [editName, setEditName] = useState(institution?.name ?? '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setInstitution(user?.currentInstitution);
-    setEditName(user?.currentInstitution?.name ?? '');
+    const presetIndex = PRESET_COLORS.findIndex(
+      (preset) => preset.primary === user?.currentInstitution?.primary_color,
+    );
+    setSelectedColor(presetIndex >= 0 ? presetIndex : 0);
   }, [user?.currentInstitution]);
 
   const handleSaveBranding = async () => {
     if (!institution) return;
     setSaving(true);
     const preset = PRESET_COLORS[selectedColor];
-    // Escreve diretamente na tabela real `instituicoes` com colunas PT
-    await supabase.from('instituicoes').update({
-      nome: editName,
+    const { error } = await supabase.from('instituicoes').update({
       cor_primaria: preset.primary,
       cor_secundaria: preset.secondary,
     }).eq('id', institution.id);
     setSaving(false);
+    if (error) {
+      Alert.alert('Não foi possível salvar a identidade visual', error.message);
+      return;
+    }
+    await refreshUser();
     setSaved(true);
     setShowBrandingModal(false);
     setTimeout(() => setSaved(false), 2000);
@@ -71,7 +76,7 @@ export default function SettingsScreen() {
       icon: <Building2 size={20} color={theme.primary} />,
       label: 'Dados da Instituição',
       desc: institution?.name ?? 'Configurar',
-      onPress: () => setShowBrandingModal(true),
+      onPress: () => router.push('/(admin)/institution'),
     },
     {
       icon: <Palette size={20} color={theme.secondary} />,
@@ -160,14 +165,6 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalBody}>
-            <Input
-              label="Nome da Instituição"
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Nome da escola"
-              icon={<Building2 size={16} color="#6B7280" />}
-            />
-
             <Text style={styles.colorLabel}>Paleta de Cores</Text>
             <View style={styles.colorGrid}>
               {PRESET_COLORS.map((preset, idx) => (

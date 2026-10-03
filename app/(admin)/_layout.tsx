@@ -82,6 +82,13 @@ export default function AdminLayout() {
           title: 'Controle de Acesso',
         }}
       />
+      <Tabs.Screen
+        name="institution"
+        options={{
+          href: null,
+          title: 'Dados da Instituição',
+        }}
+      />
     </Tabs>
   );
 }

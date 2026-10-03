@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "python-base-3.13"]
 run = "BROWSER=none npm run dev -- --web --go --port 5000 --host tunnel"
 
 [workflows]

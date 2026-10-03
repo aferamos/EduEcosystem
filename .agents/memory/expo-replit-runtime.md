@@ -12,3 +12,9 @@ Em um iPhone físico, Expo Go e Expo CLI precisam estar autenticados na mesma co
 **Why:** A validação de conta é imposta pelo Expo Go no iOS físico para projetos de desenvolvimento; não é o login do próprio app.
 
 **How to apply:** Ao ajustar a execução mobile, use o modo de túnel do Expo, preserve a exclusão de `.local` na configuração do Metro e defina `BROWSER=none` no workflow web. Se o Expo Go no iPhone mostrar a exigência de conta, autentique CLI e Expo Go com a mesma conta e toque em “Try Again”.
+
+Neste projeto, o usuário não quer entrar em uma conta Expo para abrir o app no iPhone.
+
+**Why:** O usuário pediu acesso sem entrar em conta.
+
+**How to apply:** Não solicite credenciais Expo nem tokens para contornar o bloqueio. Explique que Expo Go no iPhone físico exige autenticação para servidores de desenvolvimento e ofereça alternativas sem essa conta, como o preview web ou um simulador.

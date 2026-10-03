@@ -89,6 +89,13 @@ export default function AdminLayout() {
           title: 'Dados da Instituição',
         }}
       />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          href: null,
+          title: 'Notificações',
+        }}
+      />
     </Tabs>
   );
 }

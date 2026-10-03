@@ -94,7 +94,7 @@ export default function SettingsScreen() {
       icon: <Bell size={20} color={theme.warning} />,
       label: 'Notificações',
       desc: 'Configurar alertas e comunicados',
-      onPress: () => {},
+      onPress: () => router.push('/(admin)/notifications'),
     },
   ];
 

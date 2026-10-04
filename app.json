@@ -26,7 +26,10 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "09ec0175-12dd-438d-8b6f-42dc16b830d0"
+      }
     },
     "android": {
       "package": "com.alessandroramos.eduecosystem"
